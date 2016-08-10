@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"time"
@@ -23,7 +24,7 @@ var (
 	requiredAcks   = sarama.WaitForAll
 	version        = sarama.V0_9_0_1
 
-	pCount, mCount int
+	pCount, cCount, outCount, inCount int
 )
 
 func main() {
@@ -36,14 +37,19 @@ func main() {
 	brokerList := strings.Split(*brokers, ",")
 	log.Printf("Kafka brokers: %s", strings.Join(brokerList, ", "))
 
-	if strings.Compare(*role, "p") == 0 {
-		producer := newProducer(brokerList, newConfig(concurrentReqs, requiredAcks, version))
+	config := newConfig(concurrentReqs, requiredAcks, version)
+
+	switch *role {
+	case "p":
+		pCount++
+		config.ClientID = *role + strconv.Itoa(pCount)
+		client := newProducer(brokerList, config)
 		defer func() {
-			if err := producer.Close(); err != nil {
+			if err := client.Close(); err != nil {
 				log.Fatalln(err)
 			}
 		}()
-
+		// send messages for 'duration'
 		timer := time.NewTimer(duration)
 		for {
 			select {
@@ -51,37 +57,85 @@ func main() {
 				log.Printf("Timer expired\n")
 				return
 			default:
-				sendMessage(producer, *topic)
+				sendMessage(client, *topic, outCount)
 				time.Sleep(1 * time.Second)
 			}
 
 		}
+	case "c":
+		cCount++
+		config.ClientID = *role + strconv.Itoa(cCount)
+		client := newConsumer(brokerList, config)
+		defer func() {
+			if err := client.Close(); err != nil {
+				log.Fatalln(err)
+			}
+		}()
+		topics, err := client.Topics()
+		if err != nil {
+			panic(err)
+		}
+		log.Printf("Retrieved topics: %v", topics)
+		for i := range topics {
+			partitions, err := client.Partitions(topics[i])
+			if err != nil {
+				panic(err)
+			}
+			log.Printf("Retrieved partitions for topic %v: %v", topics[i], partitions)
+		}
+		pConsumer, err := client.ConsumePartition("test", 0, sarama.OffsetOldest)
+		if err != nil {
+			panic(err)
+		}
+		defer func() {
+			if err := pConsumer.Close(); err != nil {
+				log.Fatalln(err)
+			}
+		}()
+		// Trap SIGINT to trigger a shutdown
+		signals := make(chan os.Signal, 1)
+		signal.Notify(signals, os.Interrupt)
+		for {
+			select {
+			case <-signals:
+				break
+			case message := <-pConsumer.Messages():
+				inCount++
+				log.Printf("Consumed message offset %d\n", message.Offset)
+			}
+		}
+	default:
+		log.Fatalf("Role should have been either [p]roducer or [c]consumer, instead got %v", *role)
 	}
-
-	// TODO Add consumer
 }
 
 func newConfig(concurrentReqs int, requiredAcks sarama.RequiredAcks, version sarama.KafkaVersion) *sarama.Config {
 	conf := sarama.NewConfig()
 	conf.Net.MaxOpenRequests = concurrentReqs
 	conf.Producer.RequiredAcks = requiredAcks
-	conf.ClientID = *role + strconv.Itoa(pCount)
 	conf.Version = version
 	return conf
 }
 
 func newProducer(brokerList []string, config *sarama.Config) sarama.SyncProducer {
-	pCount++
 	producer, err := sarama.NewSyncProducer(brokerList, config)
 	if err != nil {
-		log.Fatalln(err)
+		panic(err)
 	}
 	return producer
 }
 
-func sendMessage(producer sarama.SyncProducer, topic string) {
-	mCount++
-	newMessage := &sarama.ProducerMessage{Topic: topic, Value: sarama.StringEncoder("msg " + strconv.Itoa(mCount))}
+func newConsumer(brokerList []string, config *sarama.Config) sarama.Consumer {
+	consumer, err := sarama.NewConsumer(brokerList, config)
+	if err != nil {
+		panic(err)
+	}
+	return consumer
+}
+
+func sendMessage(producer sarama.SyncProducer, topic string, count int) {
+	count = outCount
+	newMessage := &sarama.ProducerMessage{Topic: topic, Value: sarama.StringEncoder("msg " + strconv.Itoa(count))}
 	partition, offset, err := producer.SendMessage(newMessage)
 	if err != nil {
 		log.Printf("Failed to send message: %s\n", err)
