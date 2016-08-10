@@ -52,5 +52,5 @@ func sendMessage(producer sarama.SyncProducer, topic string) {
 	if err != nil {
 		log.Printf("Failed to send message: %s\n", err)
 	}
-	log.Printf("Message sent to partition %d at offset %d\n", partition, offset)
+	log.Printf("Message sent to %v/%d at offset %d\n", topic, partition, offset)
 }

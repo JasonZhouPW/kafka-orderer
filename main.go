@@ -11,17 +11,17 @@ import (
 )
 
 var (
-	brokers = flag.String("brokers", "localhost:9092", "The Kafka brokers to connect to, as a comma-separated list")
-	role    = flag.String("role", "p", "The client type: [p]roducer, [c]consumer, [g]eneric client)")
-	topic   = flag.String("topic", "test", "The topic to publish/consume to/from")
-	verbose = flag.Bool("verbose", false, "Turn on logging for the sarama library")
-
-	sendDuration    = 15 * time.Second
-	startFromOffset = sarama.OffsetOldest
+	begin    = flag.Int64("begin", -2, "Offset the consumer should begin from, if available on the broker: -2 = oldest available, -1 = newest (ignore the past), >0: pick precise offset")
+	brokers  = flag.String("brokers", "localhost:9092", "The Kafka brokers to connect to, as a comma-separated list")
+	duration = flag.Int("duration", 15, "Number of seconds for which the producer will send messages")
+	role     = flag.String("role", "p", "The client type: [p]roducer, [c]consumer, [g]eneric client)")
+	topic    = flag.String("topic", "test", "The topic to publish/consume to/from")
+	verbose  = flag.Bool("verbose", false, "Turn on logging for the sarama library")
 
 	concurrentReqs = 1
 	requiredAcks   = sarama.WaitForAll
-	version        = sarama.V0_9_0_1
+
+	version = sarama.V0_9_0_1
 )
 
 func main() {
@@ -38,8 +38,11 @@ func main() {
 
 	switch *role {
 	case "p":
+		sendDuration := time.Duration(*duration) * time.Second
 		launchProducer(brokerList, config, *role, sendDuration)
 	case "c":
+		startFromOffset := *begin
+		log.Printf("Chosen offset: %v\n", startFromOffset)
 		launchConsumer(brokerList, config, *role, startFromOffset)
 	case "g":
 		launchClient(brokerList, config, *role)
