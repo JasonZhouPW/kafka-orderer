@@ -8,15 +8,15 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-func launchConsumer(brokerList []string, config *sarama.Config, role string, offset int64) {
-	consumer := newConsumer(brokerList, config, role)
+func launchConsumer(brokerList []string, config *sarama.Config, initFlags flags) {
+	consumer := newConsumer(brokerList, config, initFlags.role)
 	defer func() {
 		if err := consumer.Close(); err != nil {
 			log.Fatalln(err)
 		}
 	}()
 
-	prtCons, err := consumer.ConsumePartition(*topic, 0, offset) // for now, consume always consume partition 0
+	prtCons, err := consumer.ConsumePartition(initFlags.topic, 0, initFlags.begin) // for now, consume always consume partition 0
 	if err != nil {
 		panic(err)
 	}

@@ -6,8 +6,8 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-func launchClient(brokerList []string, config *sarama.Config, role string) {
-	client := newClient(brokerList, config, role)
+func launchClient(brokerList []string, config *sarama.Config, initFlags flags) {
+	client := newClient(brokerList, config, initFlags.role)
 	defer func() {
 		if err := client.Close(); err != nil {
 			log.Fatalln(err)

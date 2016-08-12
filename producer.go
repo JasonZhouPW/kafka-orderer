@@ -10,8 +10,8 @@ import (
 
 var count int
 
-func launchProducer(brokerList []string, config *sarama.Config, role string, duration time.Duration) {
-	producer := newProducer(brokerList, config, role)
+func launchProducer(brokerList []string, config *sarama.Config, initFlags flags) {
+	producer := newProducer(brokerList, config, initFlags.role)
 	defer func() {
 		if err := producer.Close(); err != nil {
 			log.Fatalln(err)
@@ -19,14 +19,14 @@ func launchProducer(brokerList []string, config *sarama.Config, role string, dur
 	}()
 
 	// send messages for 'duration'
-	timer := time.NewTimer(duration)
+	timer := time.NewTimer(initFlags.duration)
 	for {
 		select {
 		case <-timer.C:
 			log.Printf("Timer expired\n")
 			return
 		default:
-			sendMessage(producer, *topic)
+			sendMessage(producer, initFlags.topic)
 			time.Sleep(1 * time.Second)
 		}
 
