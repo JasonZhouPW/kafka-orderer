@@ -19,15 +19,16 @@ func launchProducer(brokerList []string, config *sarama.Config, initFlags flags)
 	}()
 
 	// send messages for 'duration'
-	timer := time.NewTimer(initFlags.duration)
+	total := time.NewTimer(initFlags.duration)
+	every := time.NewTicker(initFlags.period)
 	for {
 		select {
-		case <-timer.C:
+		case <-total.C:
 			log.Printf("Timer expired\n")
+			every.Stop()
 			return
-		default:
+		case <-every.C:
 			sendMessage(producer, initFlags.topic)
-			time.Sleep(1 * time.Second)
 		}
 
 	}
