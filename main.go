@@ -32,12 +32,12 @@ func init() {
 	requiredAcks = sarama.WaitForAll
 	version = sarama.V0_9_0_1
 
-	flag.Int64Var(&initFlags.begin, "begin", -2, "Offset the consumer should begin from, if available on the broker: -2 = oldest available, -1 = newest (ignore the past), >0: pick precise offset - default: -2")
-	flag.StringVar(&initFlags.brokers, "brokers", "localhost:9092", "The Kafka brokers to connect to, as a comma-separated list - default: localhost:9092")
-	flag.DurationVar(&initFlags.duration, "duration", 15*time.Second, "Time during which the producer will send messages (at a rate of 1 msg/sec) - default: 15s")
-	flag.StringVar(&initFlags.role, "role", "p", "The client type: [p]roducer, [c]consumer, [g]eneric client) - default: p")
-	flag.StringVar(&initFlags.topic, "topic", "test", "The topic to publish/consume to/from - default: test")
-	flag.BoolVar(&initFlags.verbose, "verbose", false, "Turn on logging for the sarama library - default: false")
+	flag.Int64Var(&initFlags.begin, "begin", -2, "Offset the consumer should begin from, if available on the broker: -2 = oldest available, -1 = newest (ignore the past), >0: pick precise offset")
+	flag.StringVar(&initFlags.brokers, "brokers", "localhost:9092", "The Kafka brokers to connect to, as a comma-separated list")
+	flag.DurationVar(&initFlags.duration, "duration", 15*time.Second, "Time during which the producer will send messages (at a rate of 1 msg/sec)")
+	flag.StringVar(&initFlags.role, "role", "", "The client type: [p]roducer, [c]consumer, [g]eneric client")
+	flag.StringVar(&initFlags.topic, "topic", "test", "The topic to publish/consume to/from")
+	flag.BoolVar(&initFlags.verbose, "verbose", false, "Turn on logging for the sarama library (default \"false\")")
 
 	flag.Parse()
 
@@ -48,7 +48,6 @@ func init() {
 
 func main() {
 	brokerList := strings.Split(initFlags.brokers, ",")
-	log.Printf("Kafka brokers: %s", strings.Join(brokerList, ", "))
 	config := newConfig(concurrentReqs, requiredAcks, version)
 
 	switch initFlags.role {
