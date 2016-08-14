@@ -2,12 +2,14 @@ package main
 
 import (
 	"log"
+	"strings"
 
 	"github.com/Shopify/sarama"
+	cluster "github.com/bsm/sarama-cluster"
 )
 
-func launchClient(brokerList []string, config *sarama.Config, initFlags flags) {
-	client := newClient(brokerList, config, initFlags.role)
+func launchClient(config *cluster.Config, userPrefs *prefs) {
+	client := newClient(config, userPrefs)
 	defer func() {
 		if err := client.Close(); err != nil {
 			log.Fatalln(err)
@@ -18,7 +20,7 @@ func launchClient(brokerList []string, config *sarama.Config, initFlags flags) {
 	if err != nil {
 		panic(err)
 	}
-	// log.Printf("Topics: %v\n", topics)
+	// fmt.Fprintf(os.stdout, "Topics: %v\n", topics)
 
 	for i := range topics {
 		log.Printf("Topic: %s", topics[i])
@@ -26,7 +28,7 @@ func launchClient(brokerList []string, config *sarama.Config, initFlags flags) {
 		if err != nil {
 			panic(err)
 		}
-		// log.Printf("\tPartitions: %v", pts)
+		// fmt.Fprintf(os.stdout, "\tPartitions: %v", pts)
 
 		for j := range pts {
 			log.Printf("\t- Partition: %v\n", pts[j])
@@ -56,9 +58,9 @@ func launchClient(brokerList []string, config *sarama.Config, initFlags flags) {
 
 }
 
-func newClient(brokerList []string, config *sarama.Config, role string) sarama.Client {
-	config.ClientID = role
-	client, err := sarama.NewClient(brokerList, config)
+func newClient(config *cluster.Config, userPrefs *prefs) sarama.Client {
+	brokers := strings.Split(userPrefs.brokers, ",")
+	client, err := sarama.NewClient(brokers, &config.Config)
 	if err != nil {
 		panic(err)
 	}

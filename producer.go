@@ -1,17 +1,21 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Shopify/sarama"
+	cluster "github.com/bsm/sarama-cluster"
 )
 
 var count int
 
-func launchProducer(brokerList []string, config *sarama.Config, initFlags flags) {
-	producer := newProducer(brokerList, config, initFlags.role)
+func launchProducer(config *cluster.Config, userPrefs *prefs) {
+	producer := newProducer(config, userPrefs)
 	defer func() {
 		if err := producer.Close(); err != nil {
 			log.Fatalln(err)
@@ -19,8 +23,8 @@ func launchProducer(brokerList []string, config *sarama.Config, initFlags flags)
 	}()
 
 	// send messages for 'duration'
-	total := time.NewTimer(initFlags.duration)
-	every := time.NewTicker(initFlags.period)
+	total := time.NewTimer(userPrefs.duration)
+	every := time.NewTicker(userPrefs.period)
 	for {
 		select {
 		case <-total.C:
@@ -28,15 +32,15 @@ func launchProducer(brokerList []string, config *sarama.Config, initFlags flags)
 			every.Stop()
 			return
 		case <-every.C:
-			sendMessage(producer, initFlags.topic)
+			sendMessage(producer, userPrefs.topic)
 		}
 
 	}
 }
 
-func newProducer(brokerList []string, config *sarama.Config, role string) sarama.SyncProducer {
-	config.ClientID = role
-	producer, err := sarama.NewSyncProducer(brokerList, config)
+func newProducer(config *cluster.Config, userPrefs *prefs) sarama.SyncProducer {
+	brokers := strings.Split(userPrefs.brokers, ",")
+	producer, err := sarama.NewSyncProducer(brokers, &config.Config)
 	if err != nil {
 		panic(err)
 	}
@@ -53,5 +57,5 @@ func sendMessage(producer sarama.SyncProducer, topic string) {
 	if err != nil {
 		log.Printf("Failed to send message: %s\n", err)
 	}
-	log.Printf("Message sent to %v/%d at offset %d\n", topic, partition, offset)
+	fmt.Fprintf(os.Stdout, "Message sent to %v/%d at offset %d\n", topic, partition, offset)
 }
