@@ -2,14 +2,12 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"strings"
 
 	"github.com/Shopify/sarama"
 	cluster "github.com/bsm/sarama-cluster"
-	"github.com/kchristidis/kafka-orderer/ab"
 )
 
 type ordererImpl struct {
@@ -67,27 +65,4 @@ func (x *ordererImpl) sendMessage(payload []byte) {
 		log.Printf("Failed to send message: %s\n", err)
 	}
 	fmt.Fprintf(os.Stdout, "Message \"%s\" sent to %v/%d at offset %d\n", payload, x.userPrefs.topic, partition, offset)
-}
-
-func (x *ordererImpl) Broadcast(stream ab.AtomicBroadcast_BroadcastServer) error {
-	reply := new(ab.BroadcastReply)
-	for {
-		msg, err := stream.Recv()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		x.sendMessage(msg.Data)
-		reply.Status = ab.Status_SUCCESS // TODO This shouldn't always be a success
-		err = stream.Send(reply)
-		if err != nil {
-			return err
-		}
-	}
-}
-
-func (x *ordererImpl) Deliver(stream ab.AtomicBroadcast_DeliverServer) error {
-	return nil
 }
