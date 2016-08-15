@@ -15,6 +15,7 @@ A rough list, in descending priority:
 - [ ] Add tests
 - [ ] Add TLS support
 - [ ] Add option to persist/load configuration
-- [ ] Map proto `Status` codes to Kafka-generated errors
+- [ ] Map proto `Status` codes to [Kafka-generated
+  errors](https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-ErrorCodes)
 - [ ] Ensure consumer joins with unique group ID
 - [ ] Add instrumentation
