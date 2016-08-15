@@ -1,0 +1,78 @@
+/*
+Copyright IBM Corp. 2016 All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+                 http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+syntax = "proto3";
+
+package ab;
+
+// These status codes are intended to resemble selected HTTP status codes
+enum Status {
+    SUCCESS = 0;
+    BAD_REQUEST = 400;
+    FORBIDDEN = 403;
+    NOT_FOUND = 404;
+    SERVICE_UNAVAILABLE = 503;
+}
+
+message broadcast_reply {
+    Status status = 1;
+}
+
+message message {
+    bytes data = 1;
+}
+
+message properties {
+    // Start may be specified to a specific block number, or may be request from the newest or oldest available
+    enum Start {
+        NEWEST = 0;
+        OLDEST = 1;
+        SPECIFIED = 2;
+    }
+    Start start = 1;
+    uint64 specified_number = 2;
+    uint64 window_size = 3;
+}
+
+message acknowledgement {
+    uint64 number = 1;
+}
+
+message update {
+    acknowledgement acknowledgement = 1;
+    properties new_properties = 2;
+}
+
+message block {
+    uint64 number = 2;
+    bytes prev_hash = 3;
+    bytes proof = 4;
+    repeated message messages = 5;
+}
+
+message block_reply {
+    Status status = 1;
+    block block = 2;
+}
+
+service atomic_broadcast {
+    // broadcast receives a reply of acknowledgement for each message in order, indicating success or type of failure
+    rpc broadcast(stream message) returns (stream broadcast_reply) {}
+
+    // deliver first requires an update containing a properties message, then a stream of block replies is received.
+    // only as many blocks will be sent as specified in the properties window_size, until an acknowledgement update is received, advancing the window
+    rpc deliver(stream update) returns (stream block_reply) {}
+}
