@@ -87,13 +87,15 @@ func main() {
 
 	total := time.NewTimer(userPrefs.duration)
 	every := time.NewTicker(userPrefs.period)
+	defer func() {
+		every.Stop()
+	}()
 	for {
 		select {
 		case <-signals:
 			return
 		case <-total.C:
 			log.Printf("Timer expired\n")
-			every.Stop()
 			return
 		case <-every.C:
 			orderer.sendMessage([]byte("foo"))
