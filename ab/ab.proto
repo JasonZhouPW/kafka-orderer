@@ -31,48 +31,57 @@ message broadcast_reply {
     Status status = 1;
 }
 
-message message {
+message broadcast_message {
     bytes data = 1;
 }
 
-message properties {
+message seek_info {
     // Start may be specified to a specific block number, or may be request from the newest or oldest available
+    // The start location is always inclusive, so the first reply from NEWEST will contain the newest block at the time
+    // of reception, it will must not wait until a new block is created.  Similarly, when SPECIFIED, and specified_number = 10
+    // The first block received must be block 10, not block 11
     enum Start {
         NEWEST = 0;
         OLDEST = 1;
         SPECIFIED = 2;
     }
     Start start = 1;
-    uint64 specified_number = 2;
-    uint64 window_size = 3;
+    uint64 specified_number = 2; // Only used when start = SPECIFIED
+    uint64 window_size = 3; // The window size is the maximum number of blocks that will be sent without acknowledgement, the base of the window moves to the most recently received acknowledgment
 }
 
 message acknowledgement {
     uint64 number = 1;
 }
 
-message update {
-    acknowledgement acknowledgement = 1;
-    properties new_properties = 2;
+// The update message either causes a seek to a new stream start with a new window, or acknowledges a received block and advances the base of the window
+message deliver_update {
+    oneof type {
+        acknowledgement acknowledgement = 1; // acknowledgement should be sent monotonically and only for a block which has been received, acknowledgements received non-monotonically has undefined behavior
+        seek_info seek = 2; // When set, seek_info causes a seek and potential reconfiguration of the window size
+    }
 }
 
 message block {
     uint64 number = 2;
     bytes prev_hash = 3;
     bytes proof = 4;
-    repeated message messages = 5;
+    repeated broadcast_message messages = 5;
 }
 
-message block_reply {
-    Status status = 1;
-    block block = 2;
+message deliver_reply {
+    oneof type {
+        Status error = 1;
+        block block = 2;
+    }
 }
 
 service atomic_broadcast {
-    // broadcast receives a reply of acknowledgement for each message in order, indicating success or type of failure
-    rpc broadcast(stream message) returns (stream broadcast_reply) {}
+    // broadcast receives a reply of acknowledgement for each broadcast_message in order, indicating success or type of failure
+    rpc broadcast(stream broadcast_message) returns (stream broadcast_reply) {}
 
-    // deliver first requires an update containing a properties message, then a stream of block replies is received.
-    // only as many blocks will be sent as specified in the properties window_size, until an acknowledgement update is received, advancing the window
-    rpc deliver(stream update) returns (stream block_reply) {}
+    // deliver first requires an update containing a seek message, then a stream of block replies is received.
+    // The receiver may choose to send an acknowledgement for any block number it receives, however acknowledgements must never be more than window_size apart
+    // To avoid latency, clients will likely acknowledge before the window_size has been exhausted, preventing the server from stopping and waiting for an acknowledgement
+    rpc deliver(stream deliver_update) returns (stream deliver_reply) {}
 }
