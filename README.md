@@ -10,8 +10,8 @@ Development happens on the [devel](https://github.com/kchristidis/kafka-orderer/
 
 A rough list, in descending priority:
 
-- [ ] Implement `Deliver()` RPC
-- [ ] Add RPC test client
+- [x] Implement `Deliver()` RPC
+- [x] Add RPC test client
 - [ ] Add tests
 - [ ] Add TLS support
 - [ ] Add option to persist/load configuration
