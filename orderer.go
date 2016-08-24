@@ -7,91 +7,113 @@ import (
 	"strings"
 
 	"github.com/Shopify/sarama"
-	cluster "github.com/bsm/sarama-cluster"
 )
 
-// Server ...
-type Server struct {
-	Prefs    *PrefsImpl
-	Config   *cluster.Config
+// ServerImpl ...
+type ServerImpl struct {
+	Prefs  *PrefsImpl
+	Config *sarama.Config
+
 	Producer sarama.SyncProducer
+	Consumer *ConsumerImpl
 
-	Consumer  *cluster.Consumer
 	TokenChan chan struct{}
-	LastACK   int64
+	lastACK   int64
 }
 
-// NewServer ...
-func NewServer(prefs *PrefsImpl) *Server {
-	x := Server{
-		Prefs:  prefs,
-		Config: newConfig(prefs),
-	}
-	x.Producer = newProducer(x.Prefs, x.Config)
-	x.SendMessage([]byte("init")) // send a message to create the topic, otherwise the consumer will throw an exception
-	return &x
+// ConsumerImpl ...
+type ConsumerImpl struct {
+	parent    sarama.Consumer
+	Partition sarama.PartitionConsumer
 }
 
-// SendMessage ...
-func (x *Server) SendMessage(payload []byte) error {
-	newMessage := &sarama.ProducerMessage{
-		Topic: x.Prefs.Topic,
-		Value: sarama.ByteEncoder(payload),
-	}
-	partition, offset, err := x.Producer.SendMessage(newMessage)
-	if err != nil {
-		log.Printf("Failed to send message: %s\n", err)
-		return err
-	}
-	fmt.Fprintf(os.Stdout, "Message \"%s\" sent to %v/%d at offset %d\n", payload, x.Prefs.Topic, partition, offset)
-	return err
-}
-
-func newConfig(prefs *PrefsImpl) *cluster.Config {
-	conf := cluster.NewConfig()
-	conf.Net.MaxOpenRequests = prefs.ConcurrentReqs
-	conf.Producer.RequiredAcks = prefs.RequiredAcks
+func newConfig(prefs *PrefsImpl) *sarama.Config {
+	conf := sarama.NewConfig()
+	// conf.Net.MaxOpenRequests = prefs.ConcurrentReqs
+	// conf.Producer.RequiredAcks = prefs.RequiredAcks
 	conf.Version = prefs.Version
 	return conf
 }
 
-func newProducer(prefs *PrefsImpl, config *cluster.Config) sarama.SyncProducer {
+func newProducer(prefs *PrefsImpl, config *sarama.Config) sarama.SyncProducer {
 	brokers := strings.Split(prefs.Brokers, ",")
-	producer, err := sarama.NewSyncProducer(brokers, &config.Config)
+	producer, err := sarama.NewSyncProducer(brokers, config)
 	if err != nil {
 		panic(err)
 	}
 	return producer
 }
 
-func newConsumer(prefs *PrefsImpl, config *cluster.Config) *cluster.Consumer {
+func newConsumer(prefs *PrefsImpl, config *sarama.Config, beginFrom int64) *ConsumerImpl {
 	brokers := strings.Split(prefs.Brokers, ",")
-	topics := []string{prefs.Topic}
-	consumer, err := cluster.NewConsumer(brokers, prefs.Group, topics, config)
+	parent, err := sarama.NewConsumer(brokers, config)
 	if err != nil {
 		panic(err)
 	}
-	return consumer
+
+	partition, err := parent.ConsumePartition(prefs.Topic, prefs.PartitionID, beginFrom)
+	if err != nil {
+		panic(err)
+	}
+
+	return &ConsumerImpl{parent: parent, Partition: partition}
 }
 
-func (x *Server) resetConsumer(seek, window int64) {
-	tokenChan, _ := disablePush(x.TokenChan)
+// NewServer ...
+func NewServer(prefs *PrefsImpl) *ServerImpl {
+	s := ServerImpl{
+		Prefs:  prefs,
+		Config: newConfig(prefs),
+	}
+	s.Producer = newProducer(s.Prefs, s.Config)
+	s.SendMessage([]byte("init")) // send a message to create the topic, otherwise the consumer will throw an exception
+	return &s
+}
 
-	if x.Consumer != nil {
-		if err := x.Consumer.Close(); err != nil {
+// CloseProducer ...
+func (s *ServerImpl) CloseProducer() {
+	if s.Producer != nil {
+		if err := s.Producer.Close(); err != nil {
 			panic(err)
 		}
 	}
-	x.Config.Consumer.Offsets.Initial = seek
-	x.LastACK = seek - 1 // TODO For now this only works for a SPECIFIED Start
-	x.Consumer = newConsumer(x.Prefs, x.Config)
+}
 
-	x.TokenChan = enablePush(tokenChan, window)
+// CloseConsumer ...
+func (s *ServerImpl) CloseConsumer() {
+	if s.Consumer != nil {
+		s.Consumer.Close()
+	}
+}
+
+// Close ...
+func (c *ConsumerImpl) Close() {
+	if err := c.Partition.Close(); err != nil {
+		panic(err)
+	}
+	if err := c.parent.Close(); err != nil {
+		panic(err)
+	}
+}
+
+// SendMessage ...
+func (s *ServerImpl) SendMessage(payload []byte) error {
+	newMessage := &sarama.ProducerMessage{
+		Topic: s.Prefs.Topic,
+		Value: sarama.ByteEncoder(payload),
+	}
+	partition, offset, err := s.Producer.SendMessage(newMessage)
+	if err != nil {
+		log.Printf("Failed to send message: %s\n", err)
+		return err
+	}
+	fmt.Fprintf(os.Stdout, "Message \"%s\" sent to %v/%d at offset %d\n", payload, s.Prefs.Topic, partition, offset)
+	return err
 }
 
 func disablePush(c chan struct{}) (chan struct{}, int64) {
 	remaining := int64(len(c))
-	log.Printf("Token channel had %d elements remaining\n", remaining)
+	// log.Printf("Token channel had %d elements remaining\n", remaining)
 	c = nil
 	return c, remaining
 }
@@ -103,40 +125,4 @@ func enablePush(c chan struct{}, newTokenCount int64) chan struct{} {
 	}
 	log.Printf("Token channel now has %d elements\n", len(c))
 	return c
-}
-
-func getOffset(prefs PrefsImpl, config cluster.Config, begin int64) int64 {
-	/* userPrefs.group += strconv.Itoa(rand.Intn(1000))      // create a random group
-	config.Consumer.Offsets.Initial = sarama.OffsetOldest // change Offsets.Initial
-	consumer := newConsumer(&userPrefs, &config)
-	message := <-consumer.Messages()
-	offset := uint64(message.Offset)
-	defer func() {
-		if err := consumer.Close(); err != nil {
-			log.Fatalln(err)
-		}
-	}() */
-	brokers := strings.Split(prefs.Brokers, ",")
-	topics := []string{prefs.Topic}
-	tempConsumer, err := sarama.NewConsumer(brokers, &config.Config)
-	if err != nil {
-		panic(err)
-	}
-	defer func() {
-		if err := tempConsumer.Close(); err != nil {
-			panic(err)
-		}
-	}()
-	prtCons, err := tempConsumer.ConsumePartition(topics[0], 0, begin)
-	if err != nil {
-		panic(err)
-	}
-	defer func() {
-		if err := prtCons.Close(); err != nil {
-			panic(err)
-		}
-	}()
-	nextOffset := prtCons.HighWaterMarkOffset()
-	log.Printf("Next offset is: %v\n", nextOffset)
-	return nextOffset
 }
