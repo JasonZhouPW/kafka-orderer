@@ -2,7 +2,6 @@ package orderer
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/Shopify/sarama"
 )
@@ -53,9 +52,9 @@ func (s *ServerImpl) Send(payload []byte) error {
 		Topic: s.Config.Topic,
 		Value: sarama.ByteEncoder(payload),
 	}
-	partition, offset, err := s.producer.SendMessage(msg)
+	_, offset, err := s.producer.SendMessage(msg)
 	if err == nil {
-		log.Printf("Sent \"%s\" (partition: %v/%d, offset: %d)\n", payload, s.Config.Topic, partition, offset)
+		Logger.Debugf("Forwarded block %v with payload \"%s\" to ordering service\n", offset, payload)
 	}
 	return err
 }

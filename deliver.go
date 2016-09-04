@@ -2,7 +2,6 @@ package orderer
 
 import (
 	"io"
-	"log"
 
 	"github.com/Shopify/sarama"
 	"github.com/kchristidis/kafka-orderer/ab"
@@ -25,7 +24,7 @@ func newDeliverServer(config *ConfigImpl, kafkaConfig *sarama.Config) *deliverSe
 		dyingChan:   make(chan struct{}),
 		deadChan:    make(chan struct{}),
 		errChan:     make(chan error),
-		updChan:     make(chan *ab.DeliverUpdate, 1), // TODO Make sure this is the right capacity
+		updChan:     make(chan *ab.DeliverUpdate, 100), // TODO Size this properly
 		config:      config,
 		kafkaConfig: kafkaConfig,
 	}
@@ -63,13 +62,11 @@ func (s *ServerImpl) Deliver(stream ab.AtomicBroadcast_DeliverServer) error {
 				err = ds.processACK(t)
 			}
 			if err != nil {
-				log.Println("Failed to process received deliver message: ", err)
+				Logger.Info("Failed to process received deliver message:", err)
 			}
 		case <-ds.tokenChan:
 			select {
 			case msg := <-ds.consumer.partition.Messages():
-				/* log.Printf("Consumed message (topic: %s, part: %d, offset: %d, value: %s)\n",
-				msg.Topic, msg.Partition, msg.Offset, msg.Value) */
 				reply := new(ab.DeliverReply)
 				reply.Type = &ab.DeliverReply_Block{
 					Block: &ab.Block{
@@ -87,7 +84,10 @@ func (s *ServerImpl) Deliver(stream ab.AtomicBroadcast_DeliverServer) error {
 					<-ds.deadChan
 					return err
 				}
+				Logger.Debugf("Sent block %v with payload \"%s\" to client\n", msg.Offset, msg.Value)
 			default:
+				// Return the push token if there are no messages
+				// available from the ordering service.
 				ds.tokenChan <- struct{}{}
 			}
 		}
@@ -114,8 +114,11 @@ func (ds *deliverServerImpl) recvReplies(stream ab.AtomicBroadcast_DeliverServer
 func (ds *deliverServerImpl) processSeek(msg *ab.DeliverUpdate_Seek) error {
 	var err error
 	var seek, window int64
+	Logger.Debug("Received SEEK message")
 
 	window = int64(msg.Seek.WindowSize)
+	Logger.Debug("Requested window size set to", window)
+
 	switch msg.Seek.Start {
 	case ab.SeekInfo_OLDEST:
 		seek, err = getOffset(ds.config, int64(-2))
@@ -128,6 +131,7 @@ func (ds *deliverServerImpl) processSeek(msg *ab.DeliverUpdate_Seek) error {
 	if err != nil {
 		return err
 	}
+	Logger.Debug("Requested seek number set to", seek)
 
 	return ds.resetConsumer(seek, window)
 }
@@ -155,6 +159,7 @@ func getOffset(config *ConfigImpl, beginFrom int64) (offset int64, err error) {
 func (ds *deliverServerImpl) disablePush() int64 {
 	remTokens := int64(len(ds.tokenChan))
 	ds.tokenChan = nil
+	Logger.Debugf("Pushing blocks to client paused; found %v unused push token(s)", remTokens)
 	return remTokens
 }
 
@@ -163,12 +168,13 @@ func (ds *deliverServerImpl) enablePush(newTokenCount int64) {
 	for i := int64(0); i < newTokenCount; i++ {
 		ds.tokenChan <- struct{}{}
 	}
+	Logger.Debugf("Pushing blocks to client resumed; %v push token(s) available", newTokenCount)
 }
 
 func (ds *deliverServerImpl) processACK(msg *ab.DeliverUpdate_Acknowledgement) error {
-	log.Println("Received ACK for block: number", msg.Acknowledgement.Number)
+	Logger.Debug("Received ACK for block", msg.Acknowledgement.Number)
 	remTokens := ds.disablePush()
-	newACK := int64(msg.Acknowledgement.Number) // TODO Mark this offset in Kafka
+	newACK := int64(msg.Acknowledgement.Number) // TODO Optionally mark this offset in Kafka
 	newTokenCount := newACK - ds.lastACK + remTokens
 	ds.lastACK = newACK
 	ds.enablePush(newTokenCount)

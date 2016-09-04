@@ -21,6 +21,8 @@ func (s *ServerImpl) Broadcast(stream ab.AtomicBroadcast_BroadcastServer) error 
 			return err
 		}
 
+		// TODO Add block cutting logic here
+
 		err = s.Send(msg.Data)
 		if err != nil {
 			return err
@@ -31,5 +33,6 @@ func (s *ServerImpl) Broadcast(stream ab.AtomicBroadcast_BroadcastServer) error 
 		if err != nil {
 			return err
 		}
+		Logger.Debugf("Sent broadcast reply %v to client\n", reply.Status.String())
 	}
 }

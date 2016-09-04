@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"log"
 	"strconv"
 
 	"github.com/kchristidis/kafka-orderer/ab"
@@ -29,15 +28,16 @@ func (c *clientImpl) broadcast() {
 			if err != nil {
 				panic(fmt.Errorf("Failed to close the broadcast stream: %v", err))
 			}
-			log.Println("Client shutting down.")
+			logger.Info("Client shutting down")
 			return
 		case tokenChan <- struct{}{}:
 			count++
 			message.Data = []byte(strconv.Itoa(count))
 			err := stream.Send(message)
 			if err != nil {
-				log.Println("Failed to send broadcast message to ordererer: ", err)
+				logger.Info("Failed to send broadcast message to orderer: ", err)
 			}
+			logger.Debugf("Sent broadcast message \"%s\" to orderer\n", message.Data)
 		}
 	}
 }
@@ -51,6 +51,6 @@ func (c *clientImpl) recvBroadcastReplies(stream ab.AtomicBroadcast_BroadcastCli
 		if err != nil {
 			panic(fmt.Errorf("Failed to receive a broadcast reply from orderer: %v", err))
 		}
-		log.Println("Broadcast reply from orderer: ", reply.Status.String())
+		logger.Infof("Broadcast reply from orderer: %s", reply.Status.String())
 	}
 }

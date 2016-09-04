@@ -39,6 +39,8 @@ func (c *clientImpl) deliver() {
 	if err != nil {
 		log.Println("Failed to send seek update to orderer: ", err)
 	}
+	logger.Debugf("Sent seek message (start: %v, number: %v, window: %v) to orderer\n",
+		updateSeek.GetSeek().Start, updateSeek.GetSeek().SpecifiedNumber, updateSeek.GetSeek().WindowSize)
 
 	for {
 		select {
@@ -47,7 +49,7 @@ func (c *clientImpl) deliver() {
 			if err != nil {
 				panic(fmt.Errorf("Failed to close the deliver stream: %v", err))
 			}
-			log.Println("Client shutting down.")
+			logger.Info("Client shutting down")
 			return
 		}
 	}
@@ -72,18 +74,18 @@ func (c *clientImpl) recvDeliverReplies(stream ab.AtomicBroadcast_DeliverClient)
 
 		switch t := reply.GetType().(type) {
 		case *ab.DeliverReply_Block:
-			log.Println("Deliver reply from orderer (block): number ", t.Block.Number)
+			logger.Infof("Deliver reply from orderer: block %v, payload %v", t.Block.Number, t.Block.Messages)
 			count++
 			if (count > 0) && (count%c.config.ack == 0) {
 				updateAck.GetAcknowledgement().Number = t.Block.Number
 				err = stream.Send(updateAck)
 				if err != nil {
-					log.Println("Failed to send ACK update to orderer: ", err)
+					logger.Info("Failed to send ACK update to orderer: ", err)
 				}
-				log.Println("Sent ACK for block: number ", t.Block.Number)
+				logger.Debugf("Sent ACK for block %d", t.Block.Number)
 			}
 		case *ab.DeliverReply_Error:
-			log.Printf("Deliver reply from orderer (error): %+v\n", t.Error.String())
+			logger.Info("Deliver reply from orderer: error %+v\n", t.Error.String())
 		}
 	}
 }

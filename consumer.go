@@ -1,6 +1,8 @@
 package orderer
 
-import "github.com/Shopify/sarama"
+import (
+	"github.com/Shopify/sarama"
+)
 
 type consumerImpl struct {
 	parent    sarama.Consumer
@@ -13,6 +15,7 @@ func (ds *deliverServerImpl) resetConsumer(seek, window int64) error {
 		return err
 	}
 	ds.lastACK = seek - 1
+	Logger.Debug("Set last ACK for this client's consumer to", ds.lastACK)
 	if err := ds.newConsumer(seek); err != nil {
 		return err
 	}
@@ -49,5 +52,6 @@ func (ds *deliverServerImpl) newConsumer(beginFrom int64) error {
 	}
 
 	ds.consumer = &consumerImpl{parent: parent, partition: partition}
+	Logger.Debug("Created new consumer for client beginning from block", beginFrom)
 	return nil
 }
