@@ -2,8 +2,8 @@ package orderer
 
 import "github.com/Shopify/sarama"
 
-// PrefsImpl ...
-type PrefsImpl struct {
+// ConfigImpl ...
+type ConfigImpl struct {
 	FlagsImpl
 	ConcurrentReqs int
 	PartitionID    int32
@@ -11,22 +11,21 @@ type PrefsImpl struct {
 	Version        sarama.KafkaVersion
 }
 
-// NewPrefs ...
-func NewPrefs() *PrefsImpl {
-	prefs := PrefsImpl{
+// FlagsImpl ...
+type FlagsImpl struct {
+	Brokers []string
+	Topic   string
+	Port    int
+	Verbose bool
+}
+
+// NewConfig ...
+func NewConfig() *ConfigImpl {
+	return &ConfigImpl{
 		FlagsImpl:      FlagsImpl{},
 		ConcurrentReqs: 1,
 		PartitionID:    0,
 		RequiredAcks:   sarama.WaitForAll,
 		Version:        sarama.V0_9_0_1,
 	}
-	return &prefs
-}
-
-// FlagsImpl ...
-type FlagsImpl struct {
-	Brokers string
-	Topic   string
-	Port    int
-	Verbose bool
 }
