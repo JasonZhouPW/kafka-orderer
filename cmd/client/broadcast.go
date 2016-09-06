@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"math/rand"
 	"strconv"
 
 	"github.com/kchristidis/kafka-orderer/ab"
@@ -10,7 +11,7 @@ import (
 )
 
 func (c *clientImpl) broadcast() {
-	var count int
+	var random int
 	message := &ab.BroadcastMessage{} // Has a Data field
 	tokenChan := make(chan struct{}, c.config.count)
 
@@ -31,8 +32,8 @@ func (c *clientImpl) broadcast() {
 			logger.Info("Client shutting down")
 			return
 		case tokenChan <- struct{}{}:
-			count++
-			message.Data = []byte(strconv.Itoa(count))
+			random = int((rand.Float32() + 1) * 49) // Get me a two digit integer.
+			message.Data = []byte(strconv.Itoa(random))
 			err := stream.Send(message)
 			if err != nil {
 				logger.Info("Failed to send broadcast message to orderer: ", err)

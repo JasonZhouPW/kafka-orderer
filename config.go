@@ -3,6 +3,7 @@ package orderer
 import (
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Shopify/sarama"
 	logging "github.com/op/go-logging"
@@ -30,11 +31,18 @@ type ConfigImpl struct {
 
 // FlagsImpl ...
 type FlagsImpl struct {
+	Batch    BatchConfigImpl
 	Brokers  []string
 	LogLevel logging.Level
 	Topic    string
 	Port     int
 	Verbose  bool
+}
+
+// BatchConfigImpl ...
+type BatchConfigImpl struct {
+	Period time.Duration
+	Size   int
 }
 
 // NewConfig ...

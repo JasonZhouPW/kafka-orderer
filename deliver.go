@@ -4,29 +4,25 @@ import (
 	"io"
 
 	"github.com/Shopify/sarama"
+	"github.com/golang/protobuf/proto"
 	"github.com/kchristidis/kafka-orderer/ab"
 )
 
 type deliverServerImpl struct {
-	dyingChan, deadChan chan struct{}
-	errChan             chan error
-	updChan             chan *ab.DeliverUpdate
-	tokenChan           chan struct{}
+	parent    *ServerImpl
+	errChan   chan error
+	updChan   chan *ab.DeliverUpdate
+	tokenChan chan struct{}
 
-	config      *ConfigImpl
-	kafkaConfig *sarama.Config
-	consumer    *consumerImpl
-	lastACK     int64
+	consumer *consumerImpl
+	lastACK  int64
 }
 
-func newDeliverServer(config *ConfigImpl, kafkaConfig *sarama.Config) *deliverServerImpl {
+func newDeliverServer(s *ServerImpl) *deliverServerImpl {
 	return &deliverServerImpl{
-		dyingChan:   make(chan struct{}),
-		deadChan:    make(chan struct{}),
-		errChan:     make(chan error),
-		updChan:     make(chan *ab.DeliverUpdate, 100), // TODO Size this properly
-		config:      config,
-		kafkaConfig: kafkaConfig,
+		parent:  s,
+		errChan: make(chan error),
+		updChan: make(chan *ab.DeliverUpdate, 100), // TODO Size this properly
 	}
 }
 
@@ -36,20 +32,20 @@ func newDeliverServer(config *ConfigImpl, kafkaConfig *sarama.Config) *deliverSe
 func (s *ServerImpl) Deliver(stream ab.AtomicBroadcast_DeliverServer) error {
 	var err error
 	var upd *ab.DeliverUpdate
+	block := &ab.Block{}
 
-	ds := newDeliverServer(s.Config, s.kafkaConfig)
+	ds := newDeliverServer(s)
+	s.wg.Add(1)
+	defer s.wg.Done()
 	defer ds.closeConsumer()
 
 	go ds.recvReplies(stream)
 
 	for {
 		select {
-		case <-s.DeadChan:
-			close(s.DyingChan)
+		case <-s.deadChan:
 			return nil
 		case err = <-ds.errChan:
-			close(ds.dyingChan)
-			<-ds.deadChan
 			if err == io.EOF {
 				return nil
 			}
@@ -57,7 +53,7 @@ func (s *ServerImpl) Deliver(stream ab.AtomicBroadcast_DeliverServer) error {
 		case upd = <-ds.updChan:
 			switch t := upd.GetType().(type) {
 			case *ab.DeliverUpdate_Seek:
-				err = ds.processSeek(t)
+				err = ds.processSeek(s.Config, t)
 			case *ab.DeliverUpdate_Acknowledgement:
 				err = ds.processACK(t)
 			}
@@ -66,25 +62,19 @@ func (s *ServerImpl) Deliver(stream ab.AtomicBroadcast_DeliverServer) error {
 			}
 		case <-ds.tokenChan:
 			select {
-			case msg := <-ds.consumer.partition.Messages():
-				reply := new(ab.DeliverReply)
-				reply.Type = &ab.DeliverReply_Block{
-					Block: &ab.Block{
-						Number: uint64(msg.Offset),
-						Messages: []*ab.BroadcastMessage{
-							&ab.BroadcastMessage{
-								Data: []byte(msg.Value),
-							},
-						},
-					},
-				}
-				err := stream.Send(reply)
+			case data := <-ds.consumer.partition.Messages():
+				err := proto.Unmarshal(data.Value, block)
 				if err != nil {
-					close(ds.dyingChan)
-					<-ds.deadChan
+					Logger.Info("Failed to unmarshal retrieved block from ordering service:", err)
+				}
+				reply := new(ab.DeliverReply)
+				reply.Type = &ab.DeliverReply_Block{Block: block}
+				err = stream.Send(reply)
+				if err != nil {
 					return err
 				}
-				Logger.Debugf("Sent block %v with payload \"%s\" to client\n", msg.Offset, msg.Value)
+				Logger.Debugf("Sent block %v to client (prevHash: %v, messages: %v)\n",
+					block.Number, block.PrevHash, block.Messages)
 			default:
 				// Return the push token if there are no messages
 				// available from the ordering service.
@@ -96,22 +86,16 @@ func (s *ServerImpl) Deliver(stream ab.AtomicBroadcast_DeliverServer) error {
 
 func (ds *deliverServerImpl) recvReplies(stream ab.AtomicBroadcast_DeliverServer) {
 	for {
-		select {
-		case <-ds.dyingChan:
-			close(ds.deadChan)
-			return
-		default:
-			upd, err := stream.Recv()
-			if err != nil {
-				ds.errChan <- err
-			} else {
-				ds.updChan <- upd
-			}
+		upd, err := stream.Recv()
+		if err != nil {
+			ds.errChan <- err
+		} else {
+			ds.updChan <- upd
 		}
 	}
 }
 
-func (ds *deliverServerImpl) processSeek(msg *ab.DeliverUpdate_Seek) error {
+func (ds *deliverServerImpl) processSeek(config *ConfigImpl, msg *ab.DeliverUpdate_Seek) error {
 	var err error
 	var seek, window int64
 	Logger.Debug("Received SEEK message")
@@ -121,9 +105,9 @@ func (ds *deliverServerImpl) processSeek(msg *ab.DeliverUpdate_Seek) error {
 
 	switch msg.Seek.Start {
 	case ab.SeekInfo_OLDEST:
-		seek, err = getOffset(ds.config, int64(-2))
+		seek, err = getOffset(config, int64(-2))
 	case ab.SeekInfo_NEWEST:
-		seek, err = getOffset(ds.config, int64(-1))
+		seek, err = getOffset(config, int64(-1))
 	case ab.SeekInfo_SPECIFIED:
 		seek = int64(msg.Seek.SpecifiedNumber) // TODO Do not check for now and assume it is a valid offset number
 	}
@@ -133,7 +117,7 @@ func (ds *deliverServerImpl) processSeek(msg *ab.DeliverUpdate_Seek) error {
 	}
 	Logger.Debug("Requested seek number set to", seek)
 
-	return ds.resetConsumer(seek, window)
+	return ds.resetConsumer(config, seek, window)
 }
 
 func getOffset(config *ConfigImpl, beginFrom int64) (offset int64, err error) {
@@ -157,6 +141,8 @@ func getOffset(config *ConfigImpl, beginFrom int64) (offset int64, err error) {
 }
 
 func (ds *deliverServerImpl) disablePush() int64 {
+	// No need to add a lock to ensure these operations happen atomically.
+	// The caller is the only function that can modify the tokenChan.
 	remTokens := int64(len(ds.tokenChan))
 	ds.tokenChan = nil
 	Logger.Debugf("Pushing blocks to client paused; found %v unused push token(s)", remTokens)

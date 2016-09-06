@@ -1,70 +1,45 @@
 package orderer
 
 import (
-	"fmt"
+	"sync"
 
 	"github.com/Shopify/sarama"
 )
 
 // ServerImpl ...
 type ServerImpl struct {
-	DyingChan, DeadChan chan struct{}
-	Config              *ConfigImpl
-
-	kafkaConfig *sarama.Config
-	producer    sarama.SyncProducer
+	Config      *ConfigImpl
+	broadcaster *broadcastServerImpl
+	deadChan    chan struct{}
+	wg          sync.WaitGroup
 }
 
 // NewServer ...
 func NewServer(config *ConfigImpl) *ServerImpl {
 	s := &ServerImpl{
-		DyingChan:   make(chan struct{}),
-		DeadChan:    make(chan struct{}),
-		Config:      config,
-		kafkaConfig: newKafkaConfig(config),
+		Config:   config,
+		deadChan: make(chan struct{}),
 	}
-	s.producer = newProducer(s.Config, s.kafkaConfig)
-	// Send a message to create the topic, otherwise
-	// the consumer will throw an exception.
-	s.Send([]byte("init"))
+	s.broadcaster = newBroadcastServer(s)
 	return s
 }
 
-func newKafkaConfig(config *ConfigImpl) *sarama.Config {
-	kafkaConfig := sarama.NewConfig()
-	// kafkaConfig.Net.MaxOpenRequests = config.ConcurrentReqs
-	// kafkaConfig.Producer.RequiredAcks = config.RequiredAcks
-	kafkaConfig.Version = config.Version
-	return kafkaConfig
-}
-
-func newProducer(config *ConfigImpl, kafkaConfig *sarama.Config) sarama.SyncProducer {
-	producer, err := sarama.NewSyncProducer(config.Brokers, kafkaConfig)
-	if err != nil {
-		panic(fmt.Errorf("Failed to create Kafka producer: %v", err))
-	}
-	return producer
-}
-
-// Send ...
-func (s *ServerImpl) Send(payload []byte) error {
-	msg := &sarama.ProducerMessage{
-		Topic: s.Config.Topic,
-		Value: sarama.ByteEncoder(payload),
-	}
-	_, offset, err := s.producer.SendMessage(msg)
-	if err == nil {
-		Logger.Debugf("Forwarded block %v with payload \"%s\" to ordering service\n", offset, payload)
-	}
-	return err
-}
-
-// Close ...
-func (s *ServerImpl) Close() error {
-	if s.producer != nil {
-		if err := s.producer.Close(); err != nil {
+// Teardown ...
+func (s *ServerImpl) Teardown() error {
+	close(s.deadChan)
+	s.wg.Wait() // Wait till all the deliver consumers have closed
+	if s.broadcaster.producer != nil {
+		if err := s.broadcaster.producer.Close(); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func newBrokerConfig(config *ConfigImpl) *sarama.Config {
+	brokerConfig := sarama.NewConfig()
+	// brokerConfig.Net.MaxOpenRequests = config.ConcurrentReqs
+	// brokerConfig.Producer.RequiredAcks = config.RequiredAcks
+	brokerConfig.Version = config.Version
+	return brokerConfig
 }

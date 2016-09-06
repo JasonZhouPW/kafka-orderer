@@ -9,14 +9,14 @@ type consumerImpl struct {
 	partition sarama.PartitionConsumer
 }
 
-func (ds *deliverServerImpl) resetConsumer(seek, window int64) error {
+func (ds *deliverServerImpl) resetConsumer(config *ConfigImpl, seek, window int64) error {
 	ds.disablePush()
 	if err := ds.closeConsumer(); err != nil {
 		return err
 	}
 	ds.lastACK = seek - 1
 	Logger.Debug("Set last ACK for this client's consumer to", ds.lastACK)
-	if err := ds.newConsumer(seek); err != nil {
+	if err := ds.newConsumer(config, seek); err != nil {
 		return err
 	}
 	ds.enablePush(window)
@@ -40,13 +40,14 @@ func (c *consumerImpl) close() error {
 	return nil
 }
 
-func (ds *deliverServerImpl) newConsumer(beginFrom int64) error {
-	parent, err := sarama.NewConsumer(ds.config.Brokers, ds.kafkaConfig)
+func (ds *deliverServerImpl) newConsumer(config *ConfigImpl, beginFrom int64) error {
+	brokerConfig := newBrokerConfig(config)
+	parent, err := sarama.NewConsumer(config.Brokers, brokerConfig)
 	if err != nil {
 		return err
 	}
 
-	partition, err := parent.ConsumePartition(ds.config.Topic, ds.config.PartitionID, beginFrom)
+	partition, err := parent.ConsumePartition(config.Topic, config.PartitionID, beginFrom)
 	if err != nil {
 		return err
 	}
