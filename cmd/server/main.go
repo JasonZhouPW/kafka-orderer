@@ -22,16 +22,16 @@ func main() {
 
 	flag.StringVar(&brokers, "brokers", "localhost:9092",
 		"The Kafka brokers to connect to, as a comma-separated list.")
-	flag.StringVar(&loglevel, "loglevel", "debug",
+	flag.StringVar(&loglevel, "loglevel", "info",
 		"The logging level. (Allowed values: info, debug)")
-	flag.StringVar(&config.Topic, "topic", "test",
-		"The topic to publish/consume to/from.")
 	flag.DurationVar(&config.Batch.Period, "period", 5*time.Second,
 		"Maximum amount of time by which the orderer should forward a non-empty block to the ordering service.")
 	flag.IntVar(&config.Port, "port", 6100,
 		"The port to listen to for incoming RPCs.")
 	flag.IntVar(&config.Batch.Size, "size", 10,
 		"Maximum number of messages that a block can contain.")
+	flag.StringVar(&config.Topic, "topic", "test",
+		"The topic to publish/consume to/from.")
 	flag.BoolVar(&config.Verbose, "verbose", false,
 		"Turn on logging for the Kafka library. (Default: \"false\")")
 	flag.Parse() // TODO Validate user input

@@ -39,15 +39,15 @@ func main() {
 		"The RPC that this client is requesting.")
 	flag.StringVar(&client.config.server, "server",
 		"localhost:6100", "The RPC server to connect to.")
-	flag.IntVar(&client.config.count, "count", 10,
+	flag.IntVar(&client.config.count, "count", 100,
 		"When in broadcast mode, how many messages to send.")
-	flag.StringVar(&loglevel, "loglevel", "debug",
+	flag.StringVar(&loglevel, "loglevel", "info",
 		"The logging level. (Allowed values: info, debug)")
-	flag.IntVar(&client.config.seek, "seek", 6,
+	flag.IntVar(&client.config.seek, "seek", 2,
 		"When in deliver mode, the number of the first block that should be delivered (-2 for oldest available, -1 for newest).")
 	flag.IntVar(&client.config.window, "window", 10,
 		"When in deliver mode, how many blocks can the server send without acknowledgement.")
-	flag.IntVar(&client.config.ack, "ack", 10,
+	flag.IntVar(&client.config.ack, "ack", 7,
 		"When in deliver mode, send acknowledgment per this many blocks received.")
 	flag.Parse() // TODO Validate user input (e.g. ack should be =< window)
 
