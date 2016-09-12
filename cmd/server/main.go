@@ -42,7 +42,7 @@ func main() {
 		sarama.Logger = log.New(os.Stdout, "[sarama] ", log.Lshortfile)
 	}
 
-	ordererSrv := orderer.NewServer(config)
+	ordererSrv := orderer.New(config)
 	defer ordererSrv.Teardown()
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Port))

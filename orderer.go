@@ -4,20 +4,27 @@ import (
 	"sync"
 
 	"github.com/Shopify/sarama"
+	"github.com/kchristidis/kafka-orderer/ab"
 )
 
-// ServerImpl ...
-type ServerImpl struct {
-	Config      *ConfigImpl
+// Orderer ...
+type Orderer interface {
+	Broadcast(stream ab.AtomicBroadcast_BroadcastServer) error
+	Deliver(stream ab.AtomicBroadcast_DeliverServer) error
+	Teardown() error
+}
+
+type serverImpl struct {
+	config      *ConfigImpl
 	broadcaster *broadcastServerImpl
 	deadChan    chan struct{}
 	wg          sync.WaitGroup
 }
 
-// NewServer ...
-func NewServer(config *ConfigImpl) *ServerImpl {
-	s := &ServerImpl{
-		Config:   config,
+// New ...
+func New(config *ConfigImpl) Orderer {
+	s := &serverImpl{
+		config:   config,
 		deadChan: make(chan struct{}),
 	}
 	s.broadcaster = newBroadcastServer(s)
@@ -25,7 +32,7 @@ func NewServer(config *ConfigImpl) *ServerImpl {
 }
 
 // Teardown ...
-func (s *ServerImpl) Teardown() error {
+func (s *serverImpl) Teardown() error {
 	close(s.deadChan)
 	s.wg.Wait() // Wait till all the deliver consumers have closed
 	if s.broadcaster.producer != nil {

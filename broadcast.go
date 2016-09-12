@@ -13,7 +13,7 @@ import (
 )
 
 type broadcastServerImpl struct {
-	parent     *ServerImpl
+	parent     *serverImpl
 	producer   sarama.SyncProducer
 	batchChan  chan *ab.BroadcastMessage
 	messages   []*ab.BroadcastMessage
@@ -21,13 +21,13 @@ type broadcastServerImpl struct {
 	prevHash   []byte
 }
 
-func newBroadcastServer(s *ServerImpl) *broadcastServerImpl {
+func newBroadcastServer(s *serverImpl) *broadcastServerImpl {
 	bs := &broadcastServerImpl{
 		parent:     s,
-		producer:   newProducer(s.Config),
-		batchChan:  make(chan *ab.BroadcastMessage, s.Config.Batch.Size),
-		messages:   []*ab.BroadcastMessage{&ab.BroadcastMessage{Data: []byte("foo")}},
-		nextNumber: uint64(0),
+		producer:   newProducer(s.config),
+		batchChan:  make(chan *ab.BroadcastMessage, s.config.Batch.Size),
+		messages:   []*ab.BroadcastMessage{&ab.BroadcastMessage{Data: []byte("genesis")}},
+		nextNumber: 0,
 	}
 	// Send the genesis block to create the topic
 	// otherwise consumers will throw an exception.
@@ -80,7 +80,7 @@ func hashBlock(block *ab.Block) (hash, data []byte) {
 
 func (bs *broadcastServerImpl) send(payload []byte) error {
 	msg := &sarama.ProducerMessage{
-		Topic: bs.parent.Config.Topic,
+		Topic: bs.parent.config.Topic,
 		Value: sarama.ByteEncoder(payload),
 	}
 	_, offset, err := bs.producer.SendMessage(msg)
@@ -91,8 +91,8 @@ func (bs *broadcastServerImpl) send(payload []byte) error {
 }
 
 func (bs *broadcastServerImpl) checkForBlock() {
-	every := time.NewTicker(bs.parent.Config.Batch.Period)
-	maxSize := bs.parent.Config.Batch.Size
+	every := time.NewTicker(bs.parent.config.Batch.Period)
+	maxSize := bs.parent.config.Batch.Size
 
 	for {
 		select {
@@ -112,7 +112,7 @@ func (bs *broadcastServerImpl) checkForBlock() {
 // Broadcast receives ordering requests (i.e. messages that need to be ordered)
 // by the client and sends back a reply of acknowledgement
 // for each message in order indicating success or type of failure.
-func (s *ServerImpl) Broadcast(stream ab.AtomicBroadcast_BroadcastServer) error {
+func (s *serverImpl) Broadcast(stream ab.AtomicBroadcast_BroadcastServer) error {
 	reply := new(ab.BroadcastReply)
 
 	for {

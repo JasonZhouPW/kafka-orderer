@@ -9,7 +9,7 @@ import (
 )
 
 type deliverServerImpl struct {
-	parent    *ServerImpl
+	parent    *serverImpl
 	errChan   chan error
 	updChan   chan *ab.DeliverUpdate
 	tokenChan chan struct{}
@@ -18,7 +18,7 @@ type deliverServerImpl struct {
 	lastACK  int64
 }
 
-func newDeliverServer(s *ServerImpl) *deliverServerImpl {
+func newDeliverServer(s *serverImpl) *deliverServerImpl {
 	return &deliverServerImpl{
 		parent:  s,
 		errChan: make(chan error),
@@ -29,7 +29,7 @@ func newDeliverServer(s *ServerImpl) *deliverServerImpl {
 // Deliver receives updates from connected clients
 // and adjusts the transmission of ordered messages to them accordingly.
 // TODO Whenever this RPC is called, create a new consumer and tokenChan
-func (s *ServerImpl) Deliver(stream ab.AtomicBroadcast_DeliverServer) error {
+func (s *serverImpl) Deliver(stream ab.AtomicBroadcast_DeliverServer) error {
 	var err error
 	var upd *ab.DeliverUpdate
 	block := &ab.Block{}
@@ -53,7 +53,7 @@ func (s *ServerImpl) Deliver(stream ab.AtomicBroadcast_DeliverServer) error {
 		case upd = <-ds.updChan:
 			switch t := upd.GetType().(type) {
 			case *ab.DeliverUpdate_Seek:
-				err = ds.processSeek(s.Config, t)
+				err = ds.processSeek(s.config, t)
 			case *ab.DeliverUpdate_Acknowledgement:
 				err = ds.processACK(t)
 			}
