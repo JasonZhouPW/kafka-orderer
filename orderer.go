@@ -1,11 +1,6 @@
 package orderer
 
-import (
-	"sync"
-
-	"github.com/Shopify/sarama"
-	"github.com/kchristidis/kafka-orderer/ab"
-)
+import "github.com/kchristidis/kafka-orderer/ab"
 
 // Orderer ...
 type Orderer interface {
@@ -15,38 +10,30 @@ type Orderer interface {
 }
 
 type serverImpl struct {
-	config      *ConfigImpl
-	broadcaster *broadcastServerImpl
-	deadChan    chan struct{}
-	wg          sync.WaitGroup
+	broadcaster Broadcaster
+	deliverer   Deliverer
 }
 
 // New ...
 func New(config *ConfigImpl) Orderer {
-	s := &serverImpl{
-		config:   config,
-		deadChan: make(chan struct{}),
+	return &serverImpl{
+		broadcaster: newBroadcaster(config),
+		deliverer:   newDeliverer(config),
 	}
-	s.broadcaster = newBroadcastServer(s)
-	return s
+}
+
+// Broadcast ...
+func (s *serverImpl) Broadcast(stream ab.AtomicBroadcast_BroadcastServer) error {
+	return s.broadcaster.Broadcast(stream)
+}
+
+// Deliver ...
+func (s *serverImpl) Deliver(stream ab.AtomicBroadcast_DeliverServer) error {
+	return s.deliverer.Deliver(stream)
 }
 
 // Teardown ...
 func (s *serverImpl) Teardown() error {
-	close(s.deadChan)
-	s.wg.Wait() // Wait till all the deliver consumers have closed
-	if s.broadcaster.producer != nil {
-		if err := s.broadcaster.producer.Close(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func newBrokerConfig(config *ConfigImpl) *sarama.Config {
-	brokerConfig := sarama.NewConfig()
-	// brokerConfig.Net.MaxOpenRequests = config.ConcurrentReqs
-	// brokerConfig.Producer.RequiredAcks = config.RequiredAcks
-	brokerConfig.Version = config.Version
-	return brokerConfig
+	s.deliverer.Close()
+	return s.broadcaster.Close()
 }

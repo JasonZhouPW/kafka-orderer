@@ -74,7 +74,8 @@ func (c *clientImpl) recvDeliverReplies(stream ab.AtomicBroadcast_DeliverClient)
 
 		switch t := reply.GetType().(type) {
 		case *ab.DeliverReply_Block:
-			logger.Infof("Deliver reply from orderer: block %v, payload %v", t.Block.Number, t.Block.Messages)
+			logger.Infof("Deliver reply from orderer: block %v, payload %v, prevHash %v",
+				t.Block.Number, t.Block.Messages, t.Block.PrevHash)
 			count++
 			if (count > 0) && (count%c.config.ack == 0) {
 				updateAck.GetAcknowledgement().Number = t.Block.Number
