@@ -48,7 +48,7 @@ A basic sequence diagram of this thing in action (assuming a block size of 2):
 
 A rough list, in descending priority:
 
-- [ ] Add tests
+- [ ] Add BDD tests
 - [ ] Add option to persist/load configuration
 - [ ] Validate user input
 - [ ] Add TLS support
