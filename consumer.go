@@ -4,7 +4,7 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-// Consumer ...
+// Consumer allows the caller to receive a stream of messages from a Kafka partition
 type Consumer interface {
 	Recv() <-chan *sarama.ConsumerMessage
 	Close() error
@@ -29,12 +29,12 @@ func newConsumer(config *ConfigImpl, beginFrom int64) (Consumer, error) {
 	return c, nil
 }
 
-// Recv ...
+// Recv returns a channel with messages received from a Kafka partition
 func (c *consumerImpl) Recv() <-chan *sarama.ConsumerMessage {
 	return c.partition.Messages()
 }
 
-// Close ...
+// Close shuts down the partition consumer
 func (c *consumerImpl) Close() error {
 	if err := c.partition.Close(); err != nil {
 		return err

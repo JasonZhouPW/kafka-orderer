@@ -29,3 +29,11 @@ func (mp *mockProducerImpl) Send(payload []byte) error {
 func (mp *mockProducerImpl) Close() error {
 	return mp.producer.Close()
 }
+
+func TestSend(t *testing.T) {
+	mp := mockNewProducer(t, &ConfigImpl{FlagsImpl: FlagsImpl{Topic: "test_topic"}})
+	defer mp.Close()
+	if err := mp.Send([]byte("hello world")); err != nil {
+		t.Fatalf("Mock producer not functioning as expected")
+	}
+}

@@ -15,11 +15,11 @@ A basic sequence diagram of this thing in action (assuming a block size of 2):
 ## Give it a test run
 
 1. Install the Docker Engine and download the `kchristidis/kafka` image ([repo](https://github.com/kchristidis/docker-kafka))
-2. Clone this repo, `cd` to it, then install the binaries: `cd cmd/server; go install; cd ../client/; go install`
-3. Launch the orderer: `docker run -p 2181:2181 -p 9092:9092 --env ADVERTISED_HOST=HOST_IP_GOES_HERE --env ADVERTISED_PORT=9092 --name kafka kchristidis/kafka` (where you substitute `HOST_IP_GOES_HERE` with [the IP of your host machine](http://superuser.com/a/1080211), e.g. 192.168.0.5.)
-3. Launch the orderer: `server`
-4. Launch a client that broadcasts 1M messages: `client -rpc broadcast -count 1000`
-5. Launch a client that requests the delivery of a stream of all blocks available on the brokers starting from block #5: `client -rpc deliver -seek -5`.
+2. Clone this repo, `cd` to it, then install the binaries: `$ cd cmd/server; go install; cd ../client/; go install`
+3. Launch the orderer: `$ docker run -p 2181:2181 -p 9092:9092 --env ADVERTISED_HOST=0.0.0.0 --env ADVERTISED_PORT=9092 --name kafka kchristidis/kafka`
+3. Launch the orderer: `$ server`
+4. Launch a client that broadcasts 1M messages: `$ client -rpc broadcast -count 1000`
+5. Launch a client that requests the delivery of a stream of all blocks available on the brokers starting from block #5: `$ client -rpc deliver -seek 5`.
 
 `Ctrl+C` will shutdown a process gracefully, closing the Kafka producer and consumers that were created.
 
@@ -40,9 +40,9 @@ A basic sequence diagram of this thing in action (assuming a block size of 2):
 - `server`: The RPC server that this client should connect to. Default value: `localhost:6100`.
 - `count`: When in broadcast mode, the number of messages to send. Default value: `100`
 - `loglevel`: (See flag description in the server section above.)
-- `seek`: When in deliver mode, the number of the first block that should be delivered (-2 for oldest available, -1 for newest). Default value: `2`
+- `seek`: When in deliver mode, the number of the first block that should be delivered (-2 for oldest available, -1 for newest). Default value: `-2`
 - `window`: When in deliver mode, how many blocks can the server send without acknowledgement. Default value: `10`.
-- `ack`: When in deliver mode, send acknowledgment per this many blocks received. Default value: `7`. (Consult @jyellick's [proto file](https://github.com/kchristidis/kafka-orderer/blob/devel/ab/ab.proto) for more info on the `seek`/`window`/`ack` options.)
+- `ack`: When in deliver mode, send acknowledgment per this many blocks received. Default value: `7`. (Consult the [proto file](https://github.com/kchristidis/kafka-orderer/blob/devel/ab/ab.proto) for more info on the `seek`/`window`/`ack` options.)
 
 ## TODO
 

@@ -6,7 +6,7 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-// Producer ...
+// Producer allows the caller to write to Kafka
 type Producer interface {
 	Send(payload []byte) error
 	Close() error
