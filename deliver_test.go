@@ -2,33 +2,77 @@ package orderer
 
 import (
 	"testing"
-
-	"github.com/kchristidis/kafka-orderer/ab"
+	"time"
 )
 
-type mockDelivererImpl struct {
-	delivererImpl
-	t *testing.T
-}
-
-func mockNewDeliverer(t *testing.T, config *ConfigImpl) Deliverer {
-	md := &mockDelivererImpl{
-		delivererImpl: delivererImpl{
-			config:   config,
-			deadChan: make(chan struct{}),
-		},
-		t: t,
+func TestDeliverMultipleClients(t *testing.T) {
+	connectedClients := 3
+	seekMsgs := []struct {
+		start        string
+		seek, window uint64
+	}{
+		{"oldest", 0, 10}, {"newest", 0, 10}, {"specific", uint64(middleOffset), 10},
 	}
-	return md
+	expected := 21 // 10 + 1 + 10
+
+	md := mockNewDeliverer(t, config)
+	defer testClose(t, md)
+
+	var mds []*mockDeliverStream
+	for i := 0; i < connectedClients; i++ {
+		mds = append(mds, newMockDeliverStream(t))
+		go func() {
+			if err := md.Deliver(mds[i]); err != nil {
+				t.Fatal("Deliver error:", err)
+			}
+		}()
+		mds[i].incoming <- testNewSeekMessage(seekMsgs[i].start, seekMsgs[i].seek, seekMsgs[i].window)
+	}
+
+	count := 0
+
+	for i := 0; i < connectedClients; i++ {
+	client:
+		for {
+			select {
+			case <-mds[i].outgoing:
+				count++
+			case <-time.After(500 * time.Millisecond):
+				break client
+			}
+		}
+	}
+
+	if count != expected {
+		t.Fatalf("Expected %d blocks total delivered to all clients, got %d", expected, count)
+	}
 }
 
-// Deliver ...
-func (md *mockDelivererImpl) Deliver(stream ab.AtomicBroadcast_DeliverServer) error {
-	mcd := mockNewClientDeliverer(md.t, md.config, md.deadChan)
+func TestDeliverClose(t *testing.T) {
+	errChan := make(chan error)
 
-	md.wg.Add(1)
-	defer md.wg.Done()
+	md := mockNewDeliverer(t, config)
+	mds := newMockDeliverStream(t)
+	go func() {
+		if err := md.Deliver(mds); err != nil {
+			t.Fatal("Deliver error:", err)
+		}
+	}()
 
-	defer mcd.Close()
-	return mcd.Deliver(stream)
+	go func() {
+		errChan <- md.Close()
+	}()
+
+	for {
+		select {
+		case err := <-errChan:
+			if err != nil {
+				t.Fatal("Error when closing the deliverer:", err)
+			}
+			return
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("Deliverer should have closed all client deliverers by now")
+		}
+	}
+
 }

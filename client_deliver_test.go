@@ -2,28 +2,165 @@ package orderer
 
 import (
 	"testing"
+	"time"
 
 	"github.com/kchristidis/kafka-orderer/ab"
 )
 
-type mockClientDelivererImpl struct {
-	clientDelivererImpl
-	t *testing.T
+func TestClientDeliverSeekWrong(t *testing.T) {
+	t.Run("out-of-range-1", testClientDeliverSeekWrongFunc(uint64(oldestOffset)-1, 10))
+	t.Run("out-of-range-2", testClientDeliverSeekWrongFunc(uint64(newestOffset), 10))
+	t.Run("bad-window", testClientDeliverSeekWrongFunc(uint64(oldestOffset), 0))
 }
 
-func mockNewClientDeliverer(t *testing.T, config *ConfigImpl, deadChan chan struct{}) ClientDeliverer {
-	return &mockClientDelivererImpl{
-		clientDelivererImpl: clientDelivererImpl{
-			config:   config,
-			deadChan: deadChan,
-			errChan:  make(chan error),
-			updChan:  make(chan *ab.DeliverUpdate, 100),
-		},
-		t: t,
+func testClientDeliverSeekWrongFunc(seek, window uint64) func(t *testing.T) {
+	return func(t *testing.T) {
+		mds := newMockDeliverStream(t)
+
+		dc := make(chan struct{})
+		defer close(dc) // Kill the getBlocks goroutine
+
+		mcd := mockNewClientDeliverer(t, config, dc)
+		defer testClose(t, mcd)
+		go func() {
+			if err := mcd.Deliver(mds); err == nil {
+				t.Fatal("Should have received an error response")
+			}
+		}()
+
+		mds.incoming <- testNewSeekMessage("specific", seek, window)
+
+		for {
+			select {
+			case msg := <-mds.outgoing:
+				switch msg.GetType().(type) {
+				case *ab.DeliverReply_Error:
+					return // This is the success path for this test
+				default:
+					t.Fatal("Should have received an error response")
+				}
+			case <-time.After(500 * time.Millisecond):
+				t.Fatal("Should have received an error response")
+			}
+		}
 	}
 }
 
-// ResetConsumer ...
-func (mcd *mockClientDelivererImpl) ResetConsumer(seek int64) (Consumer, error) {
-	return mockNewConsumer(mcd.t, mcd.config, seek)
+func TestClientDeliverSeek(t *testing.T) {
+	t.Run("oldest", testClientDeliverSeekFunc("oldest", 0, 10, 10))
+	t.Run("in-between", testClientDeliverSeekFunc("specific", uint64(middleOffset), 10, 10))
+	t.Run("newest", testClientDeliverSeekFunc("newest", 0, 10, 1))
+}
+
+func testClientDeliverSeekFunc(label string, seek, window uint64, expected int) func(*testing.T) {
+	return func(t *testing.T) {
+		mds := newMockDeliverStream(t)
+
+		dc := make(chan struct{})
+		defer close(dc) // Kill the getBlocks goroutine
+
+		mcd := mockNewClientDeliverer(t, config, dc)
+		defer testClose(t, mcd)
+		go func() {
+			if err := mcd.Deliver(mds); err != nil {
+				t.Fatal("Deliver error:", err)
+			}
+		}()
+
+		count := 0
+		mds.incoming <- testNewSeekMessage(label, seek, window)
+		for {
+			select {
+			case <-mds.outgoing:
+				count++
+				if count > expected {
+					t.Fatalf("Delivered %d blocks to the client w/o ACK, expected %d", count, expected)
+				}
+			case <-time.After(500 * time.Millisecond):
+				if count != expected {
+					t.Fatalf("Delivered %d blocks to the client w/o ACK, expected %d", count, expected)
+				}
+				return
+			}
+		}
+	}
+}
+
+func TestClientDeliverAckWrong(t *testing.T) {
+	t.Run("out-of-range-ack-1", testClientDeliverAckWrongFunc(uint64(middleOffset)-2))
+	t.Run("out-of-range-ack-2", testClientDeliverAckWrongFunc(uint64(newestOffset)))
+}
+
+func testClientDeliverAckWrongFunc(ack uint64) func(t *testing.T) {
+	return func(t *testing.T) {
+		mds := newMockDeliverStream(t)
+
+		dc := make(chan struct{})
+		defer close(dc) // Kill the getBlocks goroutine
+
+		mcd := mockNewClientDeliverer(t, config, dc)
+		defer testClose(t, mcd)
+		go func() {
+			if err := mcd.Deliver(mds); err == nil {
+				t.Fatal("Should have received an error response")
+			}
+		}()
+
+		mds.incoming <- testNewSeekMessage("specific", uint64(middleOffset), 10)
+		mds.incoming <- testNewAckMessage(ack)
+		for {
+			select {
+			case msg := <-mds.outgoing:
+				switch msg.GetType().(type) {
+				case *ab.DeliverReply_Error:
+					return // This is the success path for this test
+				default:
+				}
+			case <-time.After(500 * time.Millisecond):
+				t.Fatal("Should have returned earlier due to wrong ACK")
+			}
+		}
+	}
+}
+
+func TestClientDeliverAck(t *testing.T) {
+	t.Run("in-between", testClientDeliverAckFunc("specific", uint64(middleOffset), 10, 10, 2*10))
+	t.Run("newest", testClientDeliverAckFunc("newest", 0, 10, 1, 1))
+}
+
+func testClientDeliverAckFunc(label string, seek, window uint64, threshold, expected int) func(t *testing.T) {
+	return func(t *testing.T) {
+		mds := newMockDeliverStream(t)
+
+		dc := make(chan struct{})
+		defer close(dc) // Kill the getBlocks goroutine
+
+		mcd := mockNewClientDeliverer(t, config, dc)
+		defer testClose(t, mcd)
+		go func() {
+			if err := mcd.Deliver(mds); err != nil {
+				t.Fatal("Deliver error:", err)
+			}
+		}()
+
+		mds.incoming <- testNewSeekMessage(label, seek, window)
+		count := 0
+		for {
+			select {
+			case msg := <-mds.outgoing:
+				count++
+				if count == threshold {
+					mds.incoming <- testNewAckMessage(msg.GetBlock().Number)
+				}
+				if count > expected {
+					t.Fatalf("Delivered %d blocks to the client w/o ACK, expected %d", count, expected)
+				}
+			case <-time.After(500 * time.Millisecond):
+				if count != expected {
+					t.Fatalf("Delivered %d blocks to the client w/o ACK, expected %d", count, expected)
+				}
+				return
+			}
+		}
+	}
 }

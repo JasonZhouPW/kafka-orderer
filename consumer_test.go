@@ -1,51 +1,39 @@
 package orderer
 
-import (
-	"strconv"
-	"testing"
+import "testing"
 
-	"github.com/Shopify/sarama"
-	"github.com/Shopify/sarama/mocks"
-)
+func TestConsumerInitWrong(t *testing.T) {
+	cases := []int64{oldestOffset - 1, newestOffset}
 
-type mockConsumerImpl struct {
-	count     int
-	offset    int64
-	parent    *mocks.Consumer
-	partition *mocks.PartitionConsumer
-	topic     string
-}
-
-func mockNewConsumer(t *testing.T, config *ConfigImpl, beginFrom int64) (Consumer, error) {
-	parent := mocks.NewConsumer(t, nil)
-	partition := parent.ExpectConsumePartition(config.Topic, config.PartitionID, beginFrom-1)
-	partition.ExpectMessagesDrainedOnClose()
-	mc := &mockConsumerImpl{
-		offset:    (beginFrom - 1),
-		parent:    parent,
-		partition: partition,
-		topic:     config.Topic,
+	for _, seek := range cases {
+		mc, err := mockNewConsumer(t, config, seek)
+		testClose(t, mc)
+		if err == nil {
+			t.Fatal("Consumer should have failed with out-of-range error")
+		}
 	}
-	return mc, nil
 }
 
-func (mc *mockConsumerImpl) Recv() <-chan *sarama.ConsumerMessage {
-	mc.partition.YieldMessage(newConsumerMessage([]byte(strconv.Itoa(mc.count)), mc.topic))
-	mc.count++
-	return mc.partition.Messages()
+func TestConsumerRecv(t *testing.T) {
+	t.Run("oldest", testConsumerRecvFunc(oldestOffset, oldestOffset))
+	t.Run("in-between", testConsumerRecvFunc(middleOffset, middleOffset))
+	t.Run("newest", testConsumerRecvFunc(newestOffset-1, newestOffset-1))
 }
 
-// Close ...
-func (mc *mockConsumerImpl) Close() error {
-	if err := mc.partition.Close(); err != nil {
-		return err
-	}
-	return mc.parent.Close()
-}
-
-func newConsumerMessage(payload []byte, topic string) *sarama.ConsumerMessage {
-	return &sarama.ConsumerMessage{
-		Value: []byte("test"),
-		Topic: topic,
+func testConsumerRecvFunc(given, expected int64) func(t *testing.T) {
+	return func(t *testing.T) {
+		mc, err := mockNewConsumer(t, config, given)
+		if err != nil {
+			testClose(t, mc)
+			t.Fatalf("Consumer should have proceeded normally: %s", err)
+		}
+		msg := <-mc.Recv()
+		if (msg.Topic != config.Topic) ||
+			msg.Partition != config.PartitionID ||
+			msg.Offset != mc.(*mockConsumerImpl).consumedOffset ||
+			msg.Offset != expected {
+			t.Fatalf("Expected block %d, got %d", expected, msg.Offset)
+		}
+		testClose(t, mc)
 	}
 }
