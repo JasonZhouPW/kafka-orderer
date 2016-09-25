@@ -6,10 +6,10 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-// Producer allows the caller to write to Kafka
+// Producer allows the caller to send blocks to the orderer
 type Producer interface {
 	Send(payload []byte) error
-	Close() error
+	Closeable
 }
 
 type producerImpl struct {

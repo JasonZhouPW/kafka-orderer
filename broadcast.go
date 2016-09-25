@@ -8,10 +8,10 @@ import (
 	"github.com/kchristidis/kafka-orderer/ab"
 )
 
-// Broadcaster ...
+// Broadcaster allows the caller to submit messages to the orderer
 type Broadcaster interface {
 	Broadcast(stream ab.AtomicBroadcast_BroadcastServer) error
-	Close() error
+	Closeable
 }
 
 type broadcasterImpl struct {
@@ -35,9 +35,9 @@ func newBroadcaster(config *ConfigImpl) Broadcaster {
 	}
 }
 
-// Broadcast receives ordering requests (i.e. messages that need to be ordered)
-// by the client and sends back a reply of acknowledgement
-// for each message in order indicating success or type of failure.
+// Broadcast receives ordering requests by clients and sends back an
+// acknowledgement for each received message in order, indicating
+// success or type of failure
 func (b *broadcasterImpl) Broadcast(stream ab.AtomicBroadcast_BroadcastServer) error {
 	b.once.Do(func() {
 		// Send the genesis block to create the topic
@@ -46,10 +46,10 @@ func (b *broadcasterImpl) Broadcast(stream ab.AtomicBroadcast_BroadcastServer) e
 		// Launch the goroutine that cuts blocks when appropriate.
 		go b.cutBlock(b.config.Batch.Period, b.config.Batch.Size)
 	})
-	return b.recvReplies(stream)
+	return b.recvRequests(stream)
 }
 
-// Close ...
+// Close shuts down the broadcast side of the orderer
 func (b *broadcasterImpl) Close() error {
 	if b.producer != nil {
 		return b.producer.Close()
@@ -91,7 +91,7 @@ func (b *broadcasterImpl) cutBlock(period time.Duration, maxSize int) {
 	}
 }
 
-func (b *broadcasterImpl) recvReplies(stream ab.AtomicBroadcast_BroadcastServer) error {
+func (b *broadcasterImpl) recvRequests(stream ab.AtomicBroadcast_BroadcastServer) error {
 	reply := new(ab.BroadcastReply)
 	for {
 		msg, err := stream.Recv()

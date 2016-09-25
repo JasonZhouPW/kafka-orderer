@@ -1,19 +1,17 @@
 package orderer
 
 import (
-	"io"
+	"errors"
+	"fmt"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/kchristidis/kafka-orderer/ab"
 )
 
-// ClientDeliverer ...
-type ClientDeliverer interface {
-	Deliverer
-	ResetConsumer(seek int64) (Consumer, error)
-}
-
 type clientDelivererImpl struct {
+	brokerFunc   func(*ConfigImpl) Broker
+	consumerFunc func(*ConfigImpl, int64) (Consumer, error) // This resets the consumer.
+
 	consumer Consumer
 	config   *ConfigImpl
 	deadChan chan struct{}
@@ -22,29 +20,35 @@ type clientDelivererImpl struct {
 	updChan   chan *ab.DeliverUpdate
 	tokenChan chan struct{}
 	lastACK   int64
+	window    int64
 }
 
-func newClientDeliverer(config *ConfigImpl, deadChan chan struct{}) ClientDeliverer {
+func newClientDeliverer(config *ConfigImpl, deadChan chan struct{}) Deliverer {
+	brokerFunc := func(config *ConfigImpl) Broker {
+		return newBroker(config)
+	}
+	consumerFunc := func(config *ConfigImpl, seek int64) (Consumer, error) {
+		return newConsumer(config, seek)
+	}
+
 	return &clientDelivererImpl{
+		brokerFunc:   brokerFunc,
+		consumerFunc: consumerFunc,
+
 		config:   config,
 		deadChan: deadChan,
 		errChan:  make(chan error),
-		updChan:  make(chan *ab.DeliverUpdate, 100), // TODO Size this properly
+		updChan:  make(chan *ab.DeliverUpdate), // TODO Size this properly
 	}
 }
 
-// Deliver ...
+// Deliver receives updates from a client and returns a stream of blocks to them
 func (cd *clientDelivererImpl) Deliver(stream ab.AtomicBroadcast_DeliverServer) error {
-	go cd.recvReplies(stream)
-	return cd.getBlocks(stream)
+	go cd.recvUpdates(stream)
+	return cd.sendBlocks(stream)
 }
 
-// ResetConsumer ...
-func (cd *clientDelivererImpl) ResetConsumer(seek int64) (Consumer, error) {
-	return newConsumer(cd.config, seek)
-}
-
-// Close ...
+// Close shuts down the Deliver server assigned by the orderer to a client
 func (cd *clientDelivererImpl) Close() error {
 	if cd.consumer != nil {
 		return cd.consumer.Close()
@@ -52,29 +56,28 @@ func (cd *clientDelivererImpl) Close() error {
 	return nil
 }
 
-func (cd *clientDelivererImpl) recvReplies(stream ab.AtomicBroadcast_DeliverServer) {
+func (cd *clientDelivererImpl) recvUpdates(stream ab.AtomicBroadcast_DeliverServer) {
 	for {
 		upd, err := stream.Recv()
 		if err != nil {
 			cd.errChan <- err
-		} else {
-			cd.updChan <- upd
+			return
 		}
+		cd.updChan <- upd
 	}
 }
 
-func (cd *clientDelivererImpl) getBlocks(stream ab.AtomicBroadcast_DeliverServer) error {
+func (cd *clientDelivererImpl) sendBlocks(stream ab.AtomicBroadcast_DeliverServer) error {
 	var err error
+	var reply *ab.DeliverReply
 	var upd *ab.DeliverUpdate
-	block := &ab.Block{}
+	block := new(ab.Block)
 	for {
 		select {
 		case <-cd.deadChan:
+			Logger.Debug("getBlocks goroutine for client-deliverer received shutdown signal")
 			return nil
 		case err = <-cd.errChan:
-			if err == io.EOF {
-				return nil
-			}
 			return err
 		case upd = <-cd.updChan:
 			switch t := upd.GetType().(type) {
@@ -84,7 +87,23 @@ func (cd *clientDelivererImpl) getBlocks(stream ab.AtomicBroadcast_DeliverServer
 				err = cd.processACK(t)
 			}
 			if err != nil {
-				Logger.Info("Failed to process received deliver message:", err)
+				var errorStatus ab.Status
+				// TODO Will need to flesh this out into
+				// a proper error handling system eventually.
+				switch err.Error() {
+				case seekOutOfRangeError:
+					errorStatus = ab.Status_NOT_FOUND
+				case ackOutOfRangeError:
+					errorStatus = ab.Status_BAD_REQUEST
+				default:
+					errorStatus = ab.Status_SERVICE_UNAVAILABLE
+				}
+				reply = new(ab.DeliverReply)
+				reply.Type = &ab.DeliverReply_Error{Error: errorStatus}
+				if err := stream.Send(reply); err != nil {
+					return fmt.Errorf("Failed to send error response to the client: %s", err)
+				}
+				return fmt.Errorf("Failed to process received update: %s", err)
 			}
 		case <-cd.tokenChan:
 			select {
@@ -93,11 +112,11 @@ func (cd *clientDelivererImpl) getBlocks(stream ab.AtomicBroadcast_DeliverServer
 				if err != nil {
 					Logger.Info("Failed to unmarshal retrieved block from ordering service:", err)
 				}
-				reply := new(ab.DeliverReply)
+				reply = new(ab.DeliverReply)
 				reply.Type = &ab.DeliverReply_Block{Block: block}
 				err = stream.Send(reply)
 				if err != nil {
-					return err
+					return fmt.Errorf("Failed to send block to the client: %s", err)
 				}
 				Logger.Debugf("Sent block %v to client (prevHash: %v, messages: %v)\n",
 					block.Number, block.PrevHash, block.Messages)
@@ -110,14 +129,62 @@ func (cd *clientDelivererImpl) getBlocks(stream ab.AtomicBroadcast_DeliverServer
 	}
 }
 
-func (cd *clientDelivererImpl) processACK(msg *ab.DeliverUpdate_Acknowledgement) error {
-	Logger.Debug("Received ACK for block", msg.Acknowledgement.Number)
-	remTokens := cd.disablePush()
-	newACK := int64(msg.Acknowledgement.Number) // TODO Optionally mark this offset in Kafka
-	newTokenCount := newACK - cd.lastACK + remTokens
-	cd.lastACK = newACK
-	cd.enablePush(newTokenCount)
+func (cd *clientDelivererImpl) processSeek(msg *ab.DeliverUpdate_Seek) error {
+	var err error
+	var seek, window int64
+	Logger.Debug("Received SEEK message")
+
+	window = int64(msg.Seek.WindowSize)
+	if window <= 0 {
+		return fmt.Errorf("Requested window should be > 0")
+	}
+	cd.window = window
+	Logger.Debug("Requested window size set to", cd.window)
+
+	oldestAvailable, err := cd.getOffset(int64(-2))
+	if err != nil {
+		return err
+	}
+	newestAvailable, err := cd.getOffset(int64(-1))
+	if err != nil {
+		return err
+	}
+	newestAvailable-- // Cause in the case of newest, the library actually gives us the seqNo of the *next* new block
+
+	switch msg.Seek.Start {
+	case ab.SeekInfo_OLDEST:
+		seek = oldestAvailable
+	case ab.SeekInfo_NEWEST:
+		seek = newestAvailable
+	case ab.SeekInfo_SPECIFIED:
+		seek = int64(msg.Seek.SpecifiedNumber)
+		if !(seek >= oldestAvailable && seek <= newestAvailable) {
+			return errors.New(seekOutOfRangeError)
+		}
+	}
+
+	Logger.Debug("Requested seek number set to", seek)
+
+	cd.disablePush()
+	if err := cd.Close(); err != nil {
+		return err
+	}
+	cd.lastACK = seek - 1
+	Logger.Debug("Set last ACK for this client's consumer to", cd.lastACK)
+
+	cd.consumer, err = cd.consumerFunc(cd.config, seek)
+	if err != nil {
+		return err
+	}
+
+	cd.enablePush(cd.window)
 	return nil
+}
+
+func (cd *clientDelivererImpl) getOffset(seek int64) (int64, error) {
+	broker := cd.brokerFunc(cd.config)
+	defer broker.Close()
+	return broker.GetOffset(newOffsetReq(cd.config, seek))
 }
 
 func (cd *clientDelivererImpl) disablePush() int64 {
@@ -137,40 +204,15 @@ func (cd *clientDelivererImpl) enablePush(newTokenCount int64) {
 	Logger.Debugf("Pushing blocks to client resumed; %v push token(s) available", newTokenCount)
 }
 
-func (cd *clientDelivererImpl) processSeek(msg *ab.DeliverUpdate_Seek) error {
-	var err error
-	var seek, window int64
-	Logger.Debug("Received SEEK message")
-
-	window = int64(msg.Seek.WindowSize)
-	Logger.Debug("Requested window size set to", window)
-
-	switch msg.Seek.Start {
-	case ab.SeekInfo_OLDEST:
-		seek, err = getOffset(cd.config, int64(-2))
-	case ab.SeekInfo_NEWEST:
-		seek, err = getOffset(cd.config, int64(-1))
-	case ab.SeekInfo_SPECIFIED:
-		seek = int64(msg.Seek.SpecifiedNumber) // TODO Do not check for now and assume it is a valid offset number
+func (cd *clientDelivererImpl) processACK(msg *ab.DeliverUpdate_Acknowledgement) error {
+	Logger.Debug("Received ACK for block", msg.Acknowledgement.Number)
+	remTokens := cd.disablePush()
+	newACK := int64(msg.Acknowledgement.Number) // TODO Optionally mark this offset in Kafka
+	if (newACK < cd.lastACK) || (newACK > cd.lastACK+cd.window) {
+		return errors.New(ackOutOfRangeError)
 	}
-
-	if err != nil {
-		return err
-	}
-	Logger.Debug("Requested seek number set to", seek)
-
-	cd.disablePush()
-	if err := cd.Close(); err != nil {
-		return err
-	}
-	cd.lastACK = seek - 1
-	Logger.Debug("Set last ACK for this client's consumer to", cd.lastACK)
-
-	cd.consumer, err = cd.ResetConsumer(seek)
-	if err != nil {
-		return err
-	}
-
-	cd.enablePush(window)
+	newTokenCount := newACK - cd.lastACK + remTokens
+	cd.lastACK = newACK
+	cd.enablePush(newTokenCount)
 	return nil
 }

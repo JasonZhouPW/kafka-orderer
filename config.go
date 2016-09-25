@@ -9,7 +9,7 @@ import (
 	logging "github.com/op/go-logging"
 )
 
-// Logger ...
+// Logger is the package-level logging object
 var Logger *logging.Logger
 
 func init() {
@@ -18,9 +18,10 @@ func init() {
 	formatter := logging.MustStringFormatter("[%{time:15:04:05}] %{shortfile:18s}: %{color}[%{level:-5s}]%{color:reset} %{message}")
 	logging.SetFormatter(formatter)
 	Logger = logging.MustGetLogger("orderer")
+	logging.SetLevel(logging.INFO, "")
 }
 
-// ConfigImpl ...
+// ConfigImpl contains all configuration options needed for a Kafka orderer
 type ConfigImpl struct {
 	FlagsImpl
 	ConcurrentReqs int
@@ -29,7 +30,7 @@ type ConfigImpl struct {
 	Version        sarama.KafkaVersion
 }
 
-// FlagsImpl ...
+// FlagsImpl contains the options that can be set by the caller via command-line flags
 type FlagsImpl struct {
 	Batch    BatchConfigImpl
 	Brokers  []string
@@ -39,24 +40,23 @@ type FlagsImpl struct {
 	Verbose  bool
 }
 
-// BatchConfigImpl ...
+// BatchConfigImpl contains the configurations options related to message batching
 type BatchConfigImpl struct {
 	Period time.Duration
 	Size   int
 }
 
-// NewConfig ...
+// NewConfig returns an orderer config object with the proper partition ID for the Kafka broker
 func NewConfig() *ConfigImpl {
 	return &ConfigImpl{
-		FlagsImpl:      FlagsImpl{},
-		ConcurrentReqs: 1,
-		PartitionID:    0,
-		RequiredAcks:   sarama.WaitForAll,
-		Version:        sarama.V0_9_0_1,
+		// ConcurrentReqs: 1,
+		PartitionID: 0,
+		// RequiredAcks:   sarama.WaitForAll,
+		Version: sarama.V0_9_0_1,
 	}
 }
 
-// SetLogLevel ...
+// SetLogLevel sets the package log level
 func (c *ConfigImpl) SetLogLevel(level string) {
 	c.LogLevel, _ = logging.LogLevel(strings.ToUpper(level)) // TODO Validate input
 	logging.SetLevel(c.LogLevel, "")

@@ -6,10 +6,10 @@ import (
 	"github.com/kchristidis/kafka-orderer/ab"
 )
 
-// Deliverer ...
+// Deliverer allows the caller to receive blocks from the orderer
 type Deliverer interface {
 	Deliver(stream ab.AtomicBroadcast_DeliverServer) error
-	Close() error
+	Closeable
 }
 
 type delivererImpl struct {
@@ -26,7 +26,7 @@ func newDeliverer(config *ConfigImpl) Deliverer {
 }
 
 // Deliver receives updates from connected clients and adjusts
-// the transmission of ordered messages to them accordingly.
+// the transmission of ordered messages to them accordingly
 func (d *delivererImpl) Deliver(stream ab.AtomicBroadcast_DeliverServer) error {
 	cd := newClientDeliverer(d.config, d.deadChan)
 
@@ -37,9 +37,11 @@ func (d *delivererImpl) Deliver(stream ab.AtomicBroadcast_DeliverServer) error {
 	return cd.Deliver(stream)
 }
 
-// Close ...
+// Close shuts down the delivery side of the orderer
 func (d *delivererImpl) Close() error {
 	close(d.deadChan)
-	d.wg.Wait() // Wait till all the client-deliverer consumers have closed
+	// Wait till all the client-deliverer consumers have closed
+	// Note that their recvReplies goroutines keep on going
+	d.wg.Wait()
 	return nil
 }

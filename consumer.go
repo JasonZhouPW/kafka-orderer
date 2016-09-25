@@ -4,10 +4,10 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-// Consumer allows the caller to receive a stream of messages from a Kafka partition
+// Consumer allows the caller to receive a stream of messages from the orderer
 type Consumer interface {
 	Recv() <-chan *sarama.ConsumerMessage
-	Close() error
+	Closeable
 }
 
 type consumerImpl struct {
@@ -15,21 +15,21 @@ type consumerImpl struct {
 	partition sarama.PartitionConsumer
 }
 
-func newConsumer(config *ConfigImpl, beginFrom int64) (Consumer, error) {
+func newConsumer(config *ConfigImpl, seek int64) (Consumer, error) {
 	parent, err := sarama.NewConsumer(config.Brokers, newBrokerConfig(config))
 	if err != nil {
 		return nil, err
 	}
-	partition, err := parent.ConsumePartition(config.Topic, config.PartitionID, beginFrom)
+	partition, err := parent.ConsumePartition(config.Topic, config.PartitionID, seek)
 	if err != nil {
 		return nil, err
 	}
 	c := &consumerImpl{parent: parent, partition: partition}
-	Logger.Debug("Created new consumer for client beginning from block", beginFrom)
+	Logger.Debug("Created new consumer for client beginning from block", seek)
 	return c, nil
 }
 
-// Recv returns a channel with messages received from a Kafka partition
+// Recv returns a channel with messages received from the orderer
 func (c *consumerImpl) Recv() <-chan *sarama.ConsumerMessage {
 	return c.partition.Messages()
 }

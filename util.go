@@ -9,25 +9,10 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-func getOffset(config *ConfigImpl, beginFrom int64) (offset int64, err error) {
-	broker := sarama.NewBroker(config.Brokers[0])
-	err = broker.Open(nil)
-	if err != nil {
-		return
-	}
-
-	req := &sarama.OffsetRequest{}
-	req.AddBlock(config.Topic, config.PartitionID, beginFrom, 1)
-	resp, err := broker.GetAvailableOffsets(req)
-	if err != nil {
-		return
-	}
-	if err = broker.Close(); err != nil {
-		return
-	}
-
-	return resp.GetBlock(config.Topic, config.PartitionID).Offsets[0], nil
-}
+const (
+	ackOutOfRangeError  = "ACK out of range"
+	seekOutOfRangeError = "Seek out of range"
+)
 
 func hashBlock(block *ab.Block) (hash, data []byte) {
 	data, err := proto.Marshal(block)
@@ -53,4 +38,15 @@ func newMsg(payload []byte, topic string) *sarama.ProducerMessage {
 		Topic: topic,
 		Value: sarama.ByteEncoder(payload),
 	}
+}
+
+func newOffsetReq(config *ConfigImpl, seek int64) *sarama.OffsetRequest {
+	req := &sarama.OffsetRequest{}
+	// If seek == -1, ask for the for the offset assigned to next new message
+	// If seek == -2, ask for the earliest available offset
+	// The last parameter in the AddBlock call is needed for God-knows-why reasons.
+	// From the Kafka folks themselves: "We agree that this API is slightly funky."
+	// https://mail-archives.apache.org/mod_mbox/kafka-users/201411.mbox/%3Cc159383825e04129b77253ffd6c448aa@BY2PR02MB505.namprd02.prod.outlook.com%3E
+	req.AddBlock(config.Topic, config.PartitionID, seek, 1)
+	return req
 }

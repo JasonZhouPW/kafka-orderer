@@ -69,7 +69,7 @@ func (c *clientImpl) recvDeliverReplies(stream ab.AtomicBroadcast_DeliverClient)
 			return
 		}
 		if err != nil {
-			panic(fmt.Errorf("Failed to receive a deliver reply from orderer: %v", err))
+			panic(err)
 		}
 
 		switch t := reply.GetType().(type) {
@@ -86,7 +86,7 @@ func (c *clientImpl) recvDeliverReplies(stream ab.AtomicBroadcast_DeliverClient)
 				logger.Debugf("Sent ACK for block %d", t.Block.Number)
 			}
 		case *ab.DeliverReply_Error:
-			logger.Info("Deliver reply from orderer: error %+v\n", t.Error.String())
+			logger.Info("Deliver reply from orderer:", t.Error.String())
 		}
 	}
 }
