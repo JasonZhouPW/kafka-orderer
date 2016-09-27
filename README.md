@@ -2,7 +2,7 @@
 
 An ordering service for [the new Fabric design](https://github.com/hyperledger/fabric/wiki/Next-Consensus-Architecture-Proposal) based on [Apache Kafka](http://kafka.apache.org).
 
-![block-diagram](https://cloud.githubusercontent.com/assets/14876848/18290826/0293d9a4-7453-11e6-8d70-f89d1577c235.png)
+![block-diagram](https://cloud.githubusercontent.com/assets/14876848/18880485/f8d45098-84a5-11e6-83f0-1dc419b26d9b.png)
 
 ## What's inside
 
