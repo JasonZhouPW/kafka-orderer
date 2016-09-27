@@ -21,10 +21,11 @@ import (
 	"testing"
 
 	"github.com/Shopify/sarama/mocks"
+	"github.com/kchristidis/kafka-orderer/config"
 )
 
 type mockProducerImpl struct {
-	config   *ConfigImpl
+	config   *config.TopLevel
 	producer *mocks.SyncProducer
 
 	checker        mocks.ValueChecker
@@ -33,9 +34,9 @@ type mockProducerImpl struct {
 	t              *testing.T
 }
 
-func mockNewProducer(t *testing.T, config *ConfigImpl, seek int64, disk chan []byte) Producer {
+func mockNewProducer(t *testing.T, conf *config.TopLevel, seek int64, disk chan []byte) Producer {
 	mp := &mockProducerImpl{
-		config:         config,
+		config:         conf,
 		producer:       mocks.NewSyncProducer(t, nil),
 		checker:        nil,
 		disk:           disk,
@@ -54,9 +55,9 @@ func (mp *mockProducerImpl) Send(payload []byte) error {
 	mp.producer.ExpectSendMessageWithCheckerFunctionAndSucceed(mp.checker)
 	mp.producedOffset++
 	mp.disk <- payload
-	prt, ofs, err := mp.producer.SendMessage(newMsg(payload, mp.config.Topic))
+	prt, ofs, err := mp.producer.SendMessage(newMsg(payload, mp.config.Kafka.Topic))
 	if err != nil ||
-		prt != mp.config.PartitionID ||
+		prt != mp.config.Kafka.PartitionID ||
 		ofs != mp.producedOffset {
 		mp.t.Fatal("Producer not functioning as expected")
 	}

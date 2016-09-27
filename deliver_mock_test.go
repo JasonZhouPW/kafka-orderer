@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/kchristidis/kafka-orderer/ab"
+	"github.com/kchristidis/kafka-orderer/config"
 )
 
 type mockDelivererImpl struct {
@@ -27,10 +28,10 @@ type mockDelivererImpl struct {
 	t *testing.T
 }
 
-func mockNewDeliverer(t *testing.T, config *ConfigImpl) Deliverer {
+func mockNewDeliverer(t *testing.T, conf *config.TopLevel) Deliverer {
 	md := &mockDelivererImpl{
 		delivererImpl: delivererImpl{
-			config:   config,
+			config:   conf,
 			deadChan: make(chan struct{}),
 		},
 		t: t,

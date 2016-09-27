@@ -20,13 +20,14 @@ import (
 	"testing"
 
 	"github.com/kchristidis/kafka-orderer/ab"
+	"github.com/kchristidis/kafka-orderer/config"
 )
 
-func mockNewBroadcaster(t *testing.T, config *ConfigImpl, seek int64, disk chan []byte) Broadcaster {
+func mockNewBroadcaster(t *testing.T, conf *config.TopLevel, seek int64, disk chan []byte) Broadcaster {
 	mb := &broadcasterImpl{
-		producer:   mockNewProducer(t, config, seek, disk),
-		config:     config,
-		batchChan:  make(chan *ab.BroadcastMessage, config.Batch.Size),
+		producer:   mockNewProducer(t, conf, seek, disk),
+		config:     conf,
+		batchChan:  make(chan *ab.BroadcastMessage, conf.General.BatchSize),
 		messages:   []*ab.BroadcastMessage{&ab.BroadcastMessage{Data: []byte("checkpoint")}},
 		nextNumber: uint64(seek),
 	}

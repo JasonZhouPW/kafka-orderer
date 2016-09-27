@@ -29,7 +29,7 @@ func TestBrokerGetOffset(t *testing.T) {
 
 func testBrokerGetOffsetFunc(given, expected int64) func(t *testing.T) {
 	return func(t *testing.T) {
-		mb := mockNewBroker(t, config)
+		mb := mockNewBroker(t, testConf)
 		defer testClose(t, mb)
 
 		offset, _ := mb.GetOffset(newOffsetReq(mb.(*mockBrockerImpl).config, given))

@@ -18,6 +18,7 @@ package orderer
 
 import (
 	"github.com/Shopify/sarama"
+	"github.com/kchristidis/kafka-orderer/config"
 )
 
 // Consumer allows the caller to receive a stream of messages from the orderer
@@ -31,12 +32,12 @@ type consumerImpl struct {
 	partition sarama.PartitionConsumer
 }
 
-func newConsumer(config *ConfigImpl, seek int64) (Consumer, error) {
-	parent, err := sarama.NewConsumer(config.Brokers, newBrokerConfig(config))
+func newConsumer(conf *config.TopLevel, seek int64) (Consumer, error) {
+	parent, err := sarama.NewConsumer(conf.Kafka.Brokers, newBrokerConfig(conf))
 	if err != nil {
 		return nil, err
 	}
-	partition, err := parent.ConsumePartition(config.Topic, config.PartitionID, seek)
+	partition, err := parent.ConsumePartition(conf.Kafka.Topic, conf.Kafka.PartitionID, seek)
 	if err != nil {
 		return nil, err
 	}

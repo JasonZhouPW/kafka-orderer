@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/kchristidis/kafka-orderer/ab"
+	"github.com/kchristidis/kafka-orderer/config"
 )
 
 // Broadcaster allows the caller to submit messages to the orderer
@@ -32,7 +33,7 @@ type Broadcaster interface {
 
 type broadcasterImpl struct {
 	producer Producer
-	config   *ConfigImpl
+	config   *config.TopLevel
 	once     sync.Once
 
 	batchChan  chan *ab.BroadcastMessage
@@ -41,11 +42,11 @@ type broadcasterImpl struct {
 	prevHash   []byte
 }
 
-func newBroadcaster(config *ConfigImpl) Broadcaster {
+func newBroadcaster(conf *config.TopLevel) Broadcaster {
 	return &broadcasterImpl{
-		producer:   newProducer(config),
-		config:     config,
-		batchChan:  make(chan *ab.BroadcastMessage, config.Batch.Size),
+		producer:   newProducer(conf),
+		config:     conf,
+		batchChan:  make(chan *ab.BroadcastMessage, conf.General.BatchSize),
 		messages:   []*ab.BroadcastMessage{&ab.BroadcastMessage{Data: []byte("genesis")}},
 		nextNumber: 0,
 	}
@@ -60,7 +61,7 @@ func (b *broadcasterImpl) Broadcast(stream ab.AtomicBroadcast_BroadcastServer) e
 		// otherwise consumers will throw an exception.
 		b.sendBlock()
 		// Launch the goroutine that cuts blocks when appropriate.
-		go b.cutBlock(b.config.Batch.Period, b.config.Batch.Size)
+		go b.cutBlock(b.config.General.BatchTimeout, b.config.General.BatchSize)
 	})
 	return b.recvRequests(stream)
 }
@@ -89,14 +90,14 @@ func (b *broadcasterImpl) sendBlock() error {
 	return b.producer.Send(data)
 }
 
-func (b *broadcasterImpl) cutBlock(period time.Duration, maxSize int) {
+func (b *broadcasterImpl) cutBlock(period time.Duration, maxSize uint) {
 	every := time.NewTicker(period)
 
 	for {
 		select {
 		case msg := <-b.batchChan:
 			b.messages = append(b.messages, msg)
-			if len(b.messages) == maxSize {
+			if len(b.messages) >= int(maxSize) {
 				b.sendBlock()
 			}
 		case <-every.C:

@@ -20,6 +20,7 @@ import (
 	"sync"
 
 	"github.com/kchristidis/kafka-orderer/ab"
+	"github.com/kchristidis/kafka-orderer/config"
 )
 
 // Deliverer allows the caller to receive blocks from the orderer
@@ -29,14 +30,14 @@ type Deliverer interface {
 }
 
 type delivererImpl struct {
-	config   *ConfigImpl
+	config   *config.TopLevel
 	deadChan chan struct{}
 	wg       sync.WaitGroup
 }
 
-func newDeliverer(config *ConfigImpl) Deliverer {
+func newDeliverer(conf *config.TopLevel) Deliverer {
 	return &delivererImpl{
-		config:   config,
+		config:   conf,
 		deadChan: make(chan struct{}),
 	}
 }

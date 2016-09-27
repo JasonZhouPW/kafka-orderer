@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/kchristidis/kafka-orderer/ab"
+	"github.com/kchristidis/kafka-orderer/config"
 )
 
 type mockClientDelivererImpl struct {
@@ -27,12 +28,12 @@ type mockClientDelivererImpl struct {
 	t *testing.T
 }
 
-func mockNewClientDeliverer(t *testing.T, config *ConfigImpl, deadChan chan struct{}) Deliverer {
-	mockBrokerFunc := func(config *ConfigImpl) Broker {
-		return mockNewBroker(t, config)
+func mockNewClientDeliverer(t *testing.T, conf *config.TopLevel, deadChan chan struct{}) Deliverer {
+	mockBrokerFunc := func(conf *config.TopLevel) Broker {
+		return mockNewBroker(t, conf)
 	}
-	mockConsumerFunc := func(config *ConfigImpl, seek int64) (Consumer, error) {
-		return mockNewConsumer(t, config, seek)
+	mockConsumerFunc := func(conf *config.TopLevel, seek int64) (Consumer, error) {
+		return mockNewConsumer(t, conf, seek)
 	}
 
 	return &mockClientDelivererImpl{
@@ -40,7 +41,7 @@ func mockNewClientDeliverer(t *testing.T, config *ConfigImpl, deadChan chan stru
 			brokerFunc:   mockBrokerFunc,
 			consumerFunc: mockConsumerFunc,
 
-			config:   config,
+			config:   conf,
 			deadChan: deadChan,
 			errChan:  make(chan error),
 			updChan:  make(chan *ab.DeliverUpdate),

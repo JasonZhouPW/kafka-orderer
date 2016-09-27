@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/Shopify/sarama"
+	"github.com/kchristidis/kafka-orderer/config"
 )
 
 type mockBrockerImpl struct {
@@ -29,7 +30,7 @@ type mockBrockerImpl struct {
 	handlerMap map[string]sarama.MockResponse
 }
 
-func mockNewBroker(t *testing.T, config *ConfigImpl) Broker {
+func mockNewBroker(t *testing.T, conf *config.TopLevel) Broker {
 	mockBroker := sarama.NewMockBroker(t, brokerID)
 	handlerMap := make(map[string]sarama.MockResponse)
 	// The sarama mock package doesn't allow us to return an error
@@ -40,8 +41,8 @@ func mockNewBroker(t *testing.T, config *ConfigImpl) Broker {
 	// make sure that the mockConsumer has been initialized accordingly
 	// (Set the 'seek' parameter to newestOffset-1.)
 	handlerMap["OffsetRequest"] = sarama.NewMockOffsetResponse(t).
-		SetOffset(config.Topic, config.PartitionID, sarama.OffsetOldest, oldestOffset).
-		SetOffset(config.Topic, config.PartitionID, sarama.OffsetNewest, newestOffset)
+		SetOffset(conf.Kafka.Topic, conf.Kafka.PartitionID, sarama.OffsetOldest, oldestOffset).
+		SetOffset(conf.Kafka.Topic, conf.Kafka.PartitionID, sarama.OffsetNewest, newestOffset)
 	mockBroker.SetHandlerByMap(handlerMap)
 
 	broker := sarama.NewBroker(mockBroker.Addr())
@@ -52,7 +53,7 @@ func mockNewBroker(t *testing.T, config *ConfigImpl) Broker {
 	return &mockBrockerImpl{
 		brokerImpl: brokerImpl{
 			broker: broker,
-			config: config,
+			config: conf,
 		},
 		mockBroker: mockBroker,
 		handlerMap: handlerMap,

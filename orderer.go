@@ -16,7 +16,10 @@ limitations under the License.
 
 package orderer
 
-import "github.com/kchristidis/kafka-orderer/ab"
+import (
+	"github.com/kchristidis/kafka-orderer/ab"
+	"github.com/kchristidis/kafka-orderer/config"
+)
 
 // Orderer allows the caller to submit to and receive messages from the orderer
 type Orderer interface {
@@ -36,10 +39,10 @@ type serverImpl struct {
 }
 
 // New creates a new orderer
-func New(config *ConfigImpl) Orderer {
+func New(conf *config.TopLevel) Orderer {
 	return &serverImpl{
-		broadcaster: newBroadcaster(config),
-		deliverer:   newDeliverer(config),
+		broadcaster: newBroadcaster(conf),
+		deliverer:   newDeliverer(conf),
 	}
 }
 

@@ -23,45 +23,37 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"strings"
-	"time"
 
 	"github.com/Shopify/sarama"
 	orderer "github.com/kchristidis/kafka-orderer"
 	"github.com/kchristidis/kafka-orderer/ab"
+	"github.com/kchristidis/kafka-orderer/config"
 	"google.golang.org/grpc"
 )
 
 func main() {
-	var brokers, loglevel string
-	config := orderer.NewConfig()
+	var kafkaVersion = sarama.V0_9_0_1 // TODO Ideally we'd set this in the YAML file but its type makes this impossible
+	conf := config.Load()
+	conf.Kafka.Version = kafkaVersion
 
-	flag.StringVar(&brokers, "brokers", "localhost:9092",
-		"The Kafka brokers to connect to, as a comma-separated list.")
+	var loglevel string
+	var verbose bool
+
 	flag.StringVar(&loglevel, "loglevel", "info",
-		"The logging level. (Allowed values: info, debug)")
-	flag.DurationVar(&config.Batch.Period, "period", 5*time.Second,
-		"Maximum amount of time by which the orderer should forward a non-empty block to the ordering service.")
-	flag.IntVar(&config.Port, "port", 6100,
-		"The port to listen to for incoming RPCs.")
-	flag.IntVar(&config.Batch.Size, "size", 10,
-		"Maximum number of messages that a block can contain.")
-	flag.StringVar(&config.Topic, "topic", "test",
-		"The topic to publish/consume to/from.")
-	flag.BoolVar(&config.Verbose, "verbose", false,
+		"Set the logging level for the orderer library. (Allowed values: info, debug)")
+	flag.BoolVar(&verbose, "verbose", false,
 		"Turn on logging for the Kafka library. (Default: \"false\")")
-	flag.Parse() // TODO Validate user input
+	flag.Parse()
 
-	config.Brokers = strings.Split(brokers, ",")
-	config.SetLogLevel(loglevel)
-	if config.Verbose {
+	orderer.SetLogLevel(loglevel)
+	if verbose {
 		sarama.Logger = log.New(os.Stdout, "[sarama] ", log.Lshortfile)
 	}
 
-	ordererSrv := orderer.New(config)
+	ordererSrv := orderer.New(conf)
 	defer ordererSrv.Teardown()
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Port))
+	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", conf.General.ListenAddress, conf.General.ListenPort))
 	if err != nil {
 		panic(err)
 	}

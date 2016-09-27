@@ -24,6 +24,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/Shopify/sarama/mocks"
 	"github.com/kchristidis/kafka-orderer/ab"
+	"github.com/kchristidis/kafka-orderer/config"
 )
 
 type mockConsumerImpl struct {
@@ -35,7 +36,7 @@ type mockConsumerImpl struct {
 	t              *testing.T
 }
 
-func mockNewConsumer(t *testing.T, config *ConfigImpl, seek int64) (Consumer, error) {
+func mockNewConsumer(t *testing.T, conf *config.TopLevel, seek int64) (Consumer, error) {
 	var err error
 	parent := mocks.NewConsumer(t, nil)
 	// NOTE The seek flag seems to be useless here.
@@ -43,8 +44,8 @@ func mockNewConsumer(t *testing.T, config *ConfigImpl, seek int64) (Consumer, er
 	// initialized to 0 no matter what. I've opened up an issue
 	// in the sarama repo: https://github.com/Shopify/sarama/issues/745
 	// Until this is resolved, use the testFillWithBlocks() hack below.
-	partMgr := parent.ExpectConsumePartition(config.Topic, config.PartitionID, seek)
-	partition, err := parent.ConsumePartition(config.Topic, config.PartitionID, seek)
+	partMgr := parent.ExpectConsumePartition(conf.Kafka.Topic, conf.Kafka.PartitionID, seek)
+	partition, err := parent.ConsumePartition(conf.Kafka.Topic, conf.Kafka.PartitionID, seek)
 	// mockNewConsumer is basically a helper function when testing.
 	// Any errors it generates internally, should result in panic
 	// and not get propagated further; checking its errors in the
@@ -57,7 +58,7 @@ func mockNewConsumer(t *testing.T, config *ConfigImpl, seek int64) (Consumer, er
 		parent:         parent,
 		partMgr:        partMgr,
 		partition:      partition,
-		topic:          config.Topic,
+		topic:          conf.Kafka.Topic,
 		t:              t,
 	}
 	// Stop-gap hack until #745 is resolved:

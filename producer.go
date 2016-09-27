@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"github.com/Shopify/sarama"
+	"github.com/kchristidis/kafka-orderer/config"
 )
 
 // Producer allows the caller to send blocks to the orderer
@@ -33,13 +34,13 @@ type producerImpl struct {
 	topic    string
 }
 
-func newProducer(config *ConfigImpl) Producer {
-	brokerConfig := newBrokerConfig(config)
-	p, err := sarama.NewSyncProducer(config.Brokers, brokerConfig)
+func newProducer(conf *config.TopLevel) Producer {
+	brokerConfig := newBrokerConfig(conf)
+	p, err := sarama.NewSyncProducer(conf.Kafka.Brokers, brokerConfig)
 	if err != nil {
 		panic(fmt.Errorf("Failed to create Kafka producer: %v", err))
 	}
-	return &producerImpl{producer: p, topic: config.Topic}
+	return &producerImpl{producer: p, topic: conf.Kafka.Topic}
 }
 
 func (p *producerImpl) Close() error {

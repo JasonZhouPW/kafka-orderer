@@ -29,7 +29,7 @@ import (
 func TestBroadcastInit(t *testing.T) {
 	disk := make(chan []byte)
 
-	mb := mockNewBroadcaster(t, config, oldestOffset, disk)
+	mb := mockNewBroadcaster(t, testConf, oldestOffset, disk)
 	defer testClose(t, mb)
 
 	mbs := newMockBroadcastStream(t)
@@ -60,7 +60,7 @@ func TestBroadcastInit(t *testing.T) {
 func TestBroadcastReply(t *testing.T) {
 	disk := make(chan []byte)
 
-	mb := mockNewBroadcaster(t, config, oldestOffset, disk)
+	mb := mockNewBroadcaster(t, testConf, oldestOffset, disk)
 	defer testClose(t, mb)
 
 	mbs := newMockBroadcastStream(t)
@@ -93,7 +93,7 @@ func TestBroadcastReply(t *testing.T) {
 func TestBroadcastBatch(t *testing.T) {
 	disk := make(chan []byte)
 
-	mb := mockNewBroadcaster(t, config, oldestOffset, disk)
+	mb := mockNewBroadcaster(t, testConf, oldestOffset, disk)
 	defer testClose(t, mb)
 
 	mbs := newMockBroadcastStream(t)
@@ -107,13 +107,13 @@ func TestBroadcastBatch(t *testing.T) {
 
 	// Pump a batch's worth of messages into the system
 	go func() {
-		for i := 0; i < config.Batch.Size; i++ {
+		for i := 0; i < int(testConf.General.BatchSize); i++ {
 			mbs.incoming <- &ab.BroadcastMessage{Data: []byte("message " + strconv.Itoa(i))}
 		}
 	}()
 
 	// Ignore the broadcast replies as they have been tested elsewhere
-	for i := 0; i < config.Batch.Size; i++ {
+	for i := 0; i < int(testConf.General.BatchSize); i++ {
 		<-mbs.outgoing
 	}
 
@@ -125,8 +125,8 @@ func TestBroadcastBatch(t *testing.T) {
 			if err != nil {
 				t.Fatal("Expected a block on the broker's disk")
 			}
-			if len(block.Messages) != config.Batch.Size {
-				t.Fatalf("Expected block to have %d messages instead of %d", config.Batch.Size, len(block.Messages))
+			if len(block.Messages) != int(testConf.General.BatchSize) {
+				t.Fatalf("Expected block to have %d messages instead of %d", testConf.General.BatchSize, len(block.Messages))
 			}
 			return
 		case <-time.After(500 * time.Millisecond):
@@ -138,7 +138,7 @@ func TestBroadcastBatch(t *testing.T) {
 func TestBroadcastClose(t *testing.T) {
 	errChan := make(chan error)
 
-	mb := mockNewBroadcaster(t, config, oldestOffset, make(chan []byte))
+	mb := mockNewBroadcaster(t, testConf, oldestOffset, make(chan []byte))
 	mbs := newMockBroadcastStream(t)
 	go func() {
 		if err := mb.Broadcast(mbs); err != nil {

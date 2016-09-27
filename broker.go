@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"github.com/Shopify/sarama"
+	"github.com/kchristidis/kafka-orderer/config"
 )
 
 // Broker allows the caller to get info on the orderer's stream
@@ -30,17 +31,17 @@ type Broker interface {
 
 type brokerImpl struct {
 	broker *sarama.Broker
-	config *ConfigImpl
+	config *config.TopLevel
 }
 
-func newBroker(config *ConfigImpl) Broker {
-	broker := sarama.NewBroker(config.Brokers[0])
+func newBroker(conf *config.TopLevel) Broker {
+	broker := sarama.NewBroker(conf.Kafka.Brokers[0])
 	if err := broker.Open(nil); err != nil {
 		panic(fmt.Errorf("Failed to create Kafka broker: %v", err))
 	}
 	return &brokerImpl{
 		broker: broker,
-		config: config,
+		config: conf,
 	}
 }
 
@@ -50,7 +51,7 @@ func (b *brokerImpl) GetOffset(req *sarama.OffsetRequest) (int64, error) {
 	if err != nil {
 		return int64(-1), err
 	}
-	return resp.GetBlock(b.config.Topic, b.config.PartitionID).Offsets[0], nil
+	return resp.GetBlock(b.config.Kafka.Topic, b.config.Kafka.PartitionID).Offsets[0], nil
 }
 
 // Close terminates the broker

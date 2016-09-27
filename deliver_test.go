@@ -31,7 +31,7 @@ func TestDeliverMultipleClients(t *testing.T) {
 	}
 	expected := 21 // 10 + 1 + 10
 
-	md := mockNewDeliverer(t, config)
+	md := mockNewDeliverer(t, testConf)
 	defer testClose(t, md)
 
 	var mds []*mockDeliverStream
@@ -67,7 +67,7 @@ func TestDeliverMultipleClients(t *testing.T) {
 func TestDeliverClose(t *testing.T) {
 	errChan := make(chan error)
 
-	md := mockNewDeliverer(t, config)
+	md := mockNewDeliverer(t, testConf)
 	mds := newMockDeliverStream(t)
 	go func() {
 		if err := md.Deliver(mds); err != nil {

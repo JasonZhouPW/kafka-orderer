@@ -22,14 +22,15 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/kchristidis/kafka-orderer/ab"
+	"github.com/kchristidis/kafka-orderer/config"
 )
 
 type clientDelivererImpl struct {
-	brokerFunc   func(*ConfigImpl) Broker
-	consumerFunc func(*ConfigImpl, int64) (Consumer, error) // This resets the consumer.
+	brokerFunc   func(*config.TopLevel) Broker
+	consumerFunc func(*config.TopLevel, int64) (Consumer, error) // This resets the consumer.
 
 	consumer Consumer
-	config   *ConfigImpl
+	config   *config.TopLevel
 	deadChan chan struct{}
 
 	errChan   chan error
@@ -39,19 +40,19 @@ type clientDelivererImpl struct {
 	window    int64
 }
 
-func newClientDeliverer(config *ConfigImpl, deadChan chan struct{}) Deliverer {
-	brokerFunc := func(config *ConfigImpl) Broker {
-		return newBroker(config)
+func newClientDeliverer(conf *config.TopLevel, deadChan chan struct{}) Deliverer {
+	brokerFunc := func(conf *config.TopLevel) Broker {
+		return newBroker(conf)
 	}
-	consumerFunc := func(config *ConfigImpl, seek int64) (Consumer, error) {
-		return newConsumer(config, seek)
+	consumerFunc := func(conf *config.TopLevel, seek int64) (Consumer, error) {
+		return newConsumer(conf, seek)
 	}
 
 	return &clientDelivererImpl{
 		brokerFunc:   brokerFunc,
 		consumerFunc: consumerFunc,
 
-		config:   config,
+		config:   conf,
 		deadChan: deadChan,
 		errChan:  make(chan error),
 		updChan:  make(chan *ab.DeliverUpdate), // TODO Size this properly

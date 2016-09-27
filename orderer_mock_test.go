@@ -20,13 +20,14 @@ import (
 	"testing"
 
 	"github.com/kchristidis/kafka-orderer/ab"
+	"github.com/kchristidis/kafka-orderer/config"
 	"google.golang.org/grpc"
 )
 
-func mockNew(t *testing.T, config *ConfigImpl, disk chan []byte) Orderer {
+func mockNew(t *testing.T, conf *config.TopLevel, disk chan []byte) Orderer {
 	return &serverImpl{
-		broadcaster: mockNewBroadcaster(t, config, oldestOffset, disk),
-		deliverer:   mockNewDeliverer(t, config),
+		broadcaster: mockNewBroadcaster(t, conf, oldestOffset, disk),
+		deliverer:   mockNewDeliverer(t, conf),
 	}
 }
 

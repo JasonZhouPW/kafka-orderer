@@ -36,7 +36,7 @@ func testClientDeliverSeekWrongFunc(seek, window uint64) func(t *testing.T) {
 		dc := make(chan struct{})
 		defer close(dc) // Kill the getBlocks goroutine
 
-		mcd := mockNewClientDeliverer(t, config, dc)
+		mcd := mockNewClientDeliverer(t, testConf, dc)
 		defer testClose(t, mcd)
 		go func() {
 			if err := mcd.Deliver(mds); err == nil {
@@ -75,7 +75,7 @@ func testClientDeliverSeekFunc(label string, seek, window uint64, expected int) 
 		dc := make(chan struct{})
 		defer close(dc) // Kill the getBlocks goroutine
 
-		mcd := mockNewClientDeliverer(t, config, dc)
+		mcd := mockNewClientDeliverer(t, testConf, dc)
 		defer testClose(t, mcd)
 		go func() {
 			if err := mcd.Deliver(mds); err != nil {
@@ -114,7 +114,7 @@ func testClientDeliverAckWrongFunc(ack uint64) func(t *testing.T) {
 		dc := make(chan struct{})
 		defer close(dc) // Kill the getBlocks goroutine
 
-		mcd := mockNewClientDeliverer(t, config, dc)
+		mcd := mockNewClientDeliverer(t, testConf, dc)
 		defer testClose(t, mcd)
 		go func() {
 			if err := mcd.Deliver(mds); err == nil {
@@ -151,7 +151,7 @@ func testClientDeliverAckFunc(label string, seek, window uint64, threshold, expe
 		dc := make(chan struct{})
 		defer close(dc) // Kill the getBlocks goroutine
 
-		mcd := mockNewClientDeliverer(t, config, dc)
+		mcd := mockNewClientDeliverer(t, testConf, dc)
 		defer testClose(t, mcd)
 		go func() {
 			if err := mcd.Deliver(mds); err != nil {

@@ -16,23 +16,34 @@ limitations under the License.
 
 package orderer
 
-import "time"
+import (
+	"time"
 
-// TODO Probably need a better way to expose this
+	"github.com/Shopify/sarama"
+	"github.com/kchristidis/kafka-orderer/config"
+)
+
 var (
-	brokerID = int32(0)
-
-	partitionID = int32(0)
-	topic       = "test"
-	config      = &ConfigImpl{
-		PartitionID: partitionID,
-		FlagsImpl: FlagsImpl{
-			Batch: BatchConfigImpl{Period: 1000 * time.Millisecond, Size: 100},
-			Topic: topic,
-		},
-	}
-
+	brokerID     = int32(0)
 	oldestOffset = int64(100)                            // The oldest block available on the broker
 	newestOffset = int64(1100)                           // The offset that will be assigned to the next block
 	middleOffset = (oldestOffset + newestOffset - 1) / 2 // Just an offset in the middle
 )
+
+var testConf = &config.TopLevel{
+	General: config.General{
+		OrdererType:   "kafka",
+		BatchTimeout:  2 * time.Second,
+		BatchSize:     100,
+		QueueSize:     100,
+		MaxWindowSize: 100,
+		ListenAddress: "127.0.0.1",
+		ListenPort:    5151,
+	},
+	Kafka: config.Kafka{
+		Brokers:     []string{"127.0.0.1:9092"},
+		Topic:       "test",
+		PartitionID: 0,
+		Version:     sarama.V0_9_0_1,
+	},
+}
