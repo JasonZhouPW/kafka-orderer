@@ -27,8 +27,9 @@ import (
 )
 
 const (
-	ackOutOfRangeError  = "ACK out of range"
-	seekOutOfRangeError = "Seek out of range"
+	ackOutOfRangeError    = "ACK out of range"
+	seekOutOfRangeError   = "Seek out of range"
+	windowOutOfRangeError = "Window out of range"
 )
 
 func hashBlock(block *ab.Block) (hash, data []byte) {

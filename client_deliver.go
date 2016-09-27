@@ -110,7 +110,7 @@ func (cd *clientDelivererImpl) sendBlocks(stream ab.AtomicBroadcast_DeliverServe
 				switch err.Error() {
 				case seekOutOfRangeError:
 					errorStatus = ab.Status_NOT_FOUND
-				case ackOutOfRangeError:
+				case ackOutOfRangeError, windowOutOfRangeError:
 					errorStatus = ab.Status_BAD_REQUEST
 				default:
 					errorStatus = ab.Status_SERVICE_UNAVAILABLE
@@ -152,8 +152,8 @@ func (cd *clientDelivererImpl) processSeek(msg *ab.DeliverUpdate_Seek) error {
 	Logger.Debug("Received SEEK message")
 
 	window = int64(msg.Seek.WindowSize)
-	if window <= 0 {
-		return fmt.Errorf("Requested window should be > 0")
+	if window <= 0 || window > int64(cd.config.General.MaxWindowSize) {
+		return errors.New(windowOutOfRangeError)
 	}
 	cd.window = window
 	Logger.Debug("Requested window size set to", cd.window)

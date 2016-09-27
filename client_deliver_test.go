@@ -26,7 +26,8 @@ import (
 func TestClientDeliverSeekWrong(t *testing.T) {
 	t.Run("out-of-range-1", testClientDeliverSeekWrongFunc(uint64(oldestOffset)-1, 10))
 	t.Run("out-of-range-2", testClientDeliverSeekWrongFunc(uint64(newestOffset), 10))
-	t.Run("bad-window", testClientDeliverSeekWrongFunc(uint64(oldestOffset), 0))
+	t.Run("bad-window-1", testClientDeliverSeekWrongFunc(uint64(oldestOffset), 0))
+	t.Run("bad-window-2", testClientDeliverSeekWrongFunc(uint64(oldestOffset), uint64(testConf.General.MaxWindowSize+1)))
 }
 
 func testClientDeliverSeekWrongFunc(seek, window uint64) func(t *testing.T) {
