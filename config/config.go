@@ -65,7 +65,7 @@ type Kafka struct {
 	Brokers     []string
 	Topic       string
 	PartitionID int32
-	Version     interface{}
+	Version     sarama.KafkaVersion
 }
 
 // TopLevel directly corresponds to the orderer config yaml
@@ -109,8 +109,6 @@ var defaults = TopLevel{
 func (c *TopLevel) completeInitialization() {
 	defer logger.Infof("Validated configuration to: %+v", c)
 
-	logger.Infof("Current configuration: %+v", c)
-
 	for {
 		switch {
 		case c.General.OrdererType == "":
@@ -146,9 +144,6 @@ func (c *TopLevel) completeInitialization() {
 		case c.Kafka.Topic == "":
 			logger.Infof("Kafka.Topic unset, setting to %v", defaults.Kafka.Topic)
 			c.Kafka.Topic = defaults.Kafka.Topic
-		case c.Kafka.Version == nil:
-			logger.Infof("Kafka.Version unset, setting to %v", defaults.Kafka.Version)
-			c.Kafka.Version = defaults.Kafka.Version
 		default:
 			return
 		}
@@ -167,6 +162,7 @@ func Load() *TopLevel {
 
 	config.SetConfigName("orderer")
 	config.AddConfigPath("./")
+	config.AddConfigPath("../../.")
 	config.AddConfigPath("../kafka-orderer/")
 	config.AddConfigPath("../../kafka-orderer/")
 	// Path to look for the config file in based on GOPATH

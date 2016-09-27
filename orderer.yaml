@@ -86,8 +86,3 @@ Kafka:
 
     # Partition ID: The partition of the Kafka topic the orderer writes to/reads from
     PartitionID: 0
-
-    # Version: The version of the Kafka backend
-    # NOTE: Use one of the supported values listed in:
-    # https://godoc.org/github.com/Shopify/sarama#pkg-variables
-    Version: sarama.V0_9_0_1
