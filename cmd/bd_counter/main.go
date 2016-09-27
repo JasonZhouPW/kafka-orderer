@@ -49,7 +49,7 @@ func main() {
 	logging.SetBackend(backend)
 	formatter := logging.MustStringFormatter("[%{time:15:04:05}] %{shortfile:18s}: %{color}[%{level:-5s}]%{color:reset} %{message}")
 	logging.SetFormatter(formatter)
-	logger = logging.MustGetLogger("orderer/client")
+	logger = logging.MustGetLogger("orderer/bd_counter")
 
 	flag.StringVar(&client.config.rpc, "rpc", "broadcast",
 		"The RPC that this client is requesting.")
