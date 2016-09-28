@@ -14,17 +14,19 @@ General:
     OrdererType: kafka
 
     # Ledger Type: The ledger type to provide to the orderer (if needed)
-    # Available types are "ram", "file", and "integrated" (for Kafka)
-    LedgerType: integrated
+    # Available types are "ram", "file". When "kafka" is chosen as the
+    # OrdererType, this option is ignored.
+    LedgerType: ram
 
     # Batch Timeout: The amount of time to wait before creating a batch
-    BatchTimeout: 5s
+    BatchTimeout: 10s
 
     # Batch Size: The maximum number of messages to permit in a batch
-    BatchSize: 100
+    BatchSize: 10
 
     # Queue Size: The maximum number of messages to allow pending from a gRPC client
-    QueueSize: 100
+    # When Kafka is chosen as the OrdererType, this option is ignored.
+    QueueSize: 10
 
     # Max Window Size: The maximum number of messages to for the orderer Deliver
     # to allow before acknowledgement must be received from the client
@@ -82,7 +84,7 @@ Kafka:
         - 127.0.0.1:9092
 
     # Topic: The Kafka topic the orderer writes to/reads from
-    Topic: kafka
+    Topic: test
 
     # Partition ID: The partition of the Kafka topic the orderer writes to/reads from
     PartitionID: 0
