@@ -65,7 +65,14 @@ type Kafka struct {
 	Brokers     []string
 	Topic       string
 	PartitionID int32
-	Version     sarama.KafkaVersion
+	Retry       Retry
+	Version     sarama.KafkaVersion // TODO For now set this in code
+}
+
+// Retry contains config for the reconnection attempts to the Kafka brokers
+type Retry struct {
+	Period time.Duration
+	Stop   time.Duration
 }
 
 // TopLevel directly corresponds to the orderer config yaml
@@ -103,6 +110,10 @@ var defaults = TopLevel{
 		Topic:       "test",
 		PartitionID: 0,
 		Version:     sarama.V0_9_0_1,
+		Retry: Retry{
+			Period: 3 * time.Second,
+			Stop:   60 * time.Second,
+		},
 	},
 }
 
@@ -144,6 +155,12 @@ func (c *TopLevel) completeInitialization() {
 		case c.Kafka.Topic == "":
 			logger.Infof("Kafka.Topic unset, setting to %v", defaults.Kafka.Topic)
 			c.Kafka.Topic = defaults.Kafka.Topic
+		case c.Kafka.Retry.Period == 0*time.Second:
+			logger.Infof("Kafka.Retry.Period unset, setting to %v", defaults.Kafka.Retry.Period)
+			c.Kafka.Retry.Period = defaults.Kafka.Retry.Period
+		case c.Kafka.Retry.Stop == 0*time.Second:
+			logger.Infof("Kafka.Retry.Stop unset, setting to %v", defaults.Kafka.Retry.Stop)
+			c.Kafka.Retry.Stop = defaults.Kafka.Retry.Stop
 		default:
 			return
 		}

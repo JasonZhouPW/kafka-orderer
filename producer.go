@@ -18,6 +18,7 @@ package orderer
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/kchristidis/kafka-orderer/config"
@@ -36,10 +37,29 @@ type producerImpl struct {
 
 func newProducer(conf *config.TopLevel) Producer {
 	brokerConfig := newBrokerConfig(conf)
-	p, err := sarama.NewSyncProducer(conf.Kafka.Brokers, brokerConfig)
-	if err != nil {
-		panic(fmt.Errorf("Failed to create Kafka producer: %v", err))
+	var p sarama.SyncProducer
+	var err error
+
+	repeatTick := time.NewTicker(conf.Kafka.Retry.Period)
+	panicTick := time.NewTicker(conf.Kafka.Retry.Stop)
+	defer repeatTick.Stop()
+	defer panicTick.Stop()
+
+loop:
+	for {
+		select {
+		case <-panicTick.C:
+			panic(fmt.Errorf("Failed to create Kafka producer: %v", err))
+		case <-repeatTick.C:
+			Logger.Debug("Connecting to Kafka brokers:", conf.Kafka.Brokers)
+			p, err = sarama.NewSyncProducer(conf.Kafka.Brokers, brokerConfig)
+			if err == nil {
+				break loop
+			}
+		}
 	}
+
+	Logger.Debug("Connected to Kafka brokers")
 	return &producerImpl{producer: p, topic: conf.Kafka.Topic}
 }
 
