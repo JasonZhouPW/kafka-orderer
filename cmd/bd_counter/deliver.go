@@ -58,16 +58,13 @@ func (c *clientImpl) deliver() {
 	logger.Debugf("Sent seek message (start: %v, number: %v, window: %v) to orderer\n",
 		updateSeek.GetSeek().Start, updateSeek.GetSeek().SpecifiedNumber, updateSeek.GetSeek().WindowSize)
 
-	for {
-		select {
-		case <-c.signalChan:
-			err = stream.CloseSend()
-			if err != nil {
-				panic(fmt.Errorf("Failed to close the deliver stream: %v", err))
-			}
-			logger.Info("Client shutting down")
-			return
+	for range c.signalChan {
+		err = stream.CloseSend()
+		if err != nil {
+			panic(fmt.Errorf("Failed to close the deliver stream: %v", err))
 		}
+		logger.Info("Client shutting down")
+		return
 	}
 }
 

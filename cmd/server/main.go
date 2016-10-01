@@ -25,6 +25,7 @@ import (
 	"os/signal"
 
 	"github.com/Shopify/sarama"
+	"github.com/hyperledger/fabric/orderer/kafka"
 	orderer "github.com/kchristidis/kafka-orderer"
 	"github.com/kchristidis/kafka-orderer/ab"
 	"github.com/kchristidis/kafka-orderer/config"
@@ -67,12 +68,9 @@ func main() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
 
-	for {
-		select {
-		case <-signalChan:
-			orderer.Logger.Info("Server shutting down")
-			// rpcSrv.Stop()
-			return
-		}
+	for range signalChan {
+		kafka.Logger.Info("Server shutting down")
+		// rpcSrv.Stop()
+		return
 	}
 }
