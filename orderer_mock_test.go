@@ -36,6 +36,7 @@ type mockBroadcastStream struct {
 	incoming chan *ab.BroadcastMessage
 	outgoing chan *ab.BroadcastReply
 	t        *testing.T
+	closed   bool // Set to true if the outgoing channel is closed
 }
 
 func newMockBroadcastStream(t *testing.T) *mockBroadcastStream {
@@ -51,8 +52,16 @@ func (mbs *mockBroadcastStream) Recv() (*ab.BroadcastMessage, error) {
 }
 
 func (mbs *mockBroadcastStream) Send(reply *ab.BroadcastReply) error {
-	mbs.outgoing <- reply
+	if !mbs.closed {
+		mbs.outgoing <- reply
+	}
 	return nil
+}
+
+func (mbs *mockBroadcastStream) CloseOut() bool {
+	close(mbs.outgoing)
+	mbs.closed = true
+	return mbs.closed
 }
 
 type mockDeliverStream struct {
@@ -60,6 +69,7 @@ type mockDeliverStream struct {
 	incoming chan *ab.DeliverUpdate
 	outgoing chan *ab.DeliverReply
 	t        *testing.T
+	closed   bool
 }
 
 func newMockDeliverStream(t *testing.T) *mockDeliverStream {
@@ -76,6 +86,14 @@ func (mds *mockDeliverStream) Recv() (*ab.DeliverUpdate, error) {
 }
 
 func (mds *mockDeliverStream) Send(reply *ab.DeliverReply) error {
-	mds.outgoing <- reply
+	if !mds.closed {
+		mds.outgoing <- reply
+	}
 	return nil
+}
+
+func (mds *mockDeliverStream) CloseOut() bool {
+	close(mds.outgoing)
+	mds.closed = true
+	return mds.closed
 }

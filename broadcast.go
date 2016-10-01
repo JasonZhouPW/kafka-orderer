@@ -130,6 +130,8 @@ func (b *broadcasterImpl) cutBlock(period time.Duration, maxSize uint) error {
 					return err
 				}
 			} else {
+				// Exit only after you're done
+				// forwarding all received messages
 				select {
 				case err := <-b.errChan:
 					return err

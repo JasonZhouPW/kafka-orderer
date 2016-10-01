@@ -135,6 +135,53 @@ func TestBroadcastBatch(t *testing.T) {
 	}
 }
 
+func TestBroadcastBatchAndQuitEarly(t *testing.T) {
+	disk := make(chan []byte)
+
+	mb := mockNewBroadcaster(t, testConf, oldestOffset, disk)
+	defer testClose(t, mb)
+
+	mbs := newMockBroadcastStream(t)
+	go func() {
+		if err := mb.Broadcast(mbs); err != nil {
+			t.Fatal("Broadcast error:", err)
+		}
+	}()
+
+	<-disk // We tested the checkpoint block in a previous test, so we can ignore it now
+
+	// Pump a batch's worth of messages into the system
+	go func() {
+		for i := 0; i < int(testConf.General.BatchSize); i++ {
+			mbs.incoming <- &ab.BroadcastMessage{Data: []byte("message " + strconv.Itoa(i))}
+		}
+	}()
+
+	// In contrast to TestBroadcastBatch, do not receive any replies.
+	// This simulates the case where you quit early (though you would
+	// most likely still get replies in a real world scenario, as long
+	// as you don't receive all of them we're on the same page).
+	for !mbs.CloseOut() {
+	}
+
+	for {
+		select {
+		case in := <-disk:
+			block := new(ab.Block)
+			err := proto.Unmarshal(in, block)
+			if err != nil {
+				t.Fatal("Expected a block on the broker's disk")
+			}
+			if len(block.Messages) != int(testConf.General.BatchSize) {
+				t.Fatalf("Expected block to have %d messages instead of %d", testConf.General.BatchSize, len(block.Messages))
+			}
+			return
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("Should have received the initialization block by now")
+		}
+	}
+}
+
 func TestBroadcastClose(t *testing.T) {
 	errChan := make(chan error)
 
