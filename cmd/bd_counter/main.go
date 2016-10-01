@@ -59,7 +59,7 @@ func main() {
 		"When in broadcast mode, how many messages to send.")
 	flag.StringVar(&loglevel, "loglevel", "info",
 		"The logging level. (Allowed values: info, debug)")
-	flag.IntVar(&client.config.seek, "seek", 2,
+	flag.IntVar(&client.config.seek, "seek", -2,
 		"When in deliver mode, the number of the first block that should be delivered (-2 for oldest available, -1 for newest).")
 	flag.IntVar(&client.config.window, "window", 10,
 		"When in deliver mode, how many blocks can the server send without acknowledgement.")
@@ -68,7 +68,7 @@ func main() {
 	flag.Parse() // TODO Validate user input (e.g. ack should be =< window)
 
 	client.config.logLevel, _ = logging.LogLevel(strings.ToUpper(loglevel))
-	logging.SetLevel(client.config.logLevel, "orderer/client")
+	logging.SetLevel(client.config.logLevel, "orderer/bd_counter")
 
 	// Trap SIGINT to trigger a shutdown
 	// We must use a buffered channel or risk missing the signal
