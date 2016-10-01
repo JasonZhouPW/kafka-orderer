@@ -50,7 +50,7 @@ func (c *clientImpl) broadcast() {
 			message.Data = []byte(strconv.Itoa(count))
 			err := stream.Send(message)
 			if err != nil {
-				logger.Info("Failed to send broadcast message to orderer: ", err)
+				logger.Info("Failed to send broadcast message to orderer:", err)
 			}
 			logger.Debugf("Sent broadcast message \"%s\" to orderer\n", message.Data)
 			count++
@@ -59,6 +59,7 @@ func (c *clientImpl) broadcast() {
 }
 
 func (c *clientImpl) recvBroadcastReplies(stream ab.AtomicBroadcast_BroadcastClient) {
+	var count int
 	for {
 		reply, err := stream.Recv()
 		if err == io.EOF {
@@ -67,6 +68,10 @@ func (c *clientImpl) recvBroadcastReplies(stream ab.AtomicBroadcast_BroadcastCli
 		if err != nil {
 			panic(fmt.Errorf("Failed to receive a broadcast reply from orderer: %v", err))
 		}
-		logger.Infof("Broadcast reply from orderer: %s", reply.Status.String())
+		count++
+		logger.Info("Broadcast reply from orderer:", reply.Status.String())
+		if count >= c.config.count {
+			close(c.signalChan)
+		}
 	}
 }
