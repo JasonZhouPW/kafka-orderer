@@ -92,7 +92,7 @@ func (cd *clientDelivererImpl) sendBlocks(stream ab.AtomicBroadcast_DeliverServe
 	for {
 		select {
 		case <-cd.deadChan:
-			Logger.Debug("getBlocks goroutine for client-deliverer received shutdown signal")
+			Logger.Debug("sendBlocks goroutine for client-deliverer received shutdown signal")
 			return nil
 		case err = <-cd.errChan:
 			return err
