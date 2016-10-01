@@ -42,7 +42,13 @@ A basic sequence diagram of this thing in action (assuming a block size of 2):
 
 ## Docker Compose
 
+If you want to build the `orderer` image from scratch:
+
 `CGO_ENABLED=0 GOOS=linux go build -a -o cmd/server/server github.com/kchristidis/kafka-orderer/cmd/server; docker build -t kchristidis/orderer .; docker-compose up`
+
+Otherwise simply do:
+
+`docker-compose up`
 
 This will bring up a server that can be reached at the default port on your Docker host.
 
