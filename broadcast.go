@@ -95,7 +95,7 @@ func (b *broadcasterImpl) recvRequests(stream ab.AtomicBroadcast_BroadcastServer
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			Logger.Info("Cannot receive request from client")
+			Logger.Debug("Can no longer receive requests from client (exited?)")
 			b.errChan <- err
 			return
 		}
@@ -107,9 +107,8 @@ func (b *broadcasterImpl) recvRequests(stream ab.AtomicBroadcast_BroadcastServer
 			Logger.Info("Cannot send broadcast reply to client")
 			b.errChan <- err
 			return
-		} else {
-			Logger.Debugf("Sent broadcast reply %v to client", reply.Status.String())
 		}
+		Logger.Debugf("Sent broadcast reply %v to client", reply.Status.String())
 	}
 }
 
