@@ -42,7 +42,7 @@ A basic sequence diagram of this thing in action (assuming a block size of 2):
 
 ## Docker Compose
 
-`CGO_ENABLED=0 GOOS=linux go build -a; docker build -t kchristidis/orderer .; docker-compose up`
+`CGO_ENABLED=0 GOOS=linux go build -a -o cmd/server/server github.com/kchristidis/kafka-orderer/cmd/server; docker build -t kchristidis/orderer .; docker-compose up`
 
 This will bring up a server that can be reached at the default port on your Docker host.
 

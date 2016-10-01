@@ -2,7 +2,6 @@ kafka:
     image: kchristidis/kafka
     container_name: kafka
     environment:
-        - ADVERTISED_HOST=0.0.0.0
         - ADVERTISED_PORT=9092
 
 orderer:
