@@ -28,6 +28,7 @@ func mockNewBroadcaster(t *testing.T, conf *config.TopLevel, seek int64, disk ch
 		producer:   mockNewProducer(t, conf, seek, disk),
 		config:     conf,
 		batchChan:  make(chan *ab.BroadcastMessage, conf.General.BatchSize),
+		errChan:    make(chan error),
 		messages:   []*ab.BroadcastMessage{&ab.BroadcastMessage{Data: []byte("checkpoint")}},
 		nextNumber: uint64(seek),
 	}

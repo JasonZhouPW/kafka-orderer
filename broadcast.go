@@ -17,7 +17,6 @@ limitations under the License.
 package orderer
 
 import (
-	"io"
 	"sync"
 	"time"
 
@@ -37,6 +36,7 @@ type broadcasterImpl struct {
 	once     sync.Once
 
 	batchChan  chan *ab.BroadcastMessage
+	errChan    chan error
 	messages   []*ab.BroadcastMessage
 	nextNumber uint64
 	prevHash   []byte
@@ -47,6 +47,7 @@ func newBroadcaster(conf *config.TopLevel) Broadcaster {
 		producer:   newProducer(conf),
 		config:     conf,
 		batchChan:  make(chan *ab.BroadcastMessage, conf.General.BatchSize),
+		errChan:    make(chan error),
 		messages:   []*ab.BroadcastMessage{&ab.BroadcastMessage{Data: []byte("genesis")}},
 		nextNumber: 0,
 	}
@@ -60,10 +61,9 @@ func (b *broadcasterImpl) Broadcast(stream ab.AtomicBroadcast_BroadcastServer) e
 		// Send the genesis block to create the topic
 		// otherwise consumers will throw an exception.
 		b.sendBlock()
-		// Launch the goroutine that cuts blocks when appropriate.
-		go b.cutBlock(b.config.General.BatchTimeout, b.config.General.BatchSize)
+		go b.recvRequests(stream)
 	})
-	return b.recvRequests(stream)
+	return b.cutBlock(b.config.General.BatchTimeout, b.config.General.BatchSize)
 }
 
 // Close shuts down the broadcast side of the orderer
@@ -90,40 +90,46 @@ func (b *broadcasterImpl) sendBlock() error {
 	return b.producer.Send(data)
 }
 
-func (b *broadcasterImpl) cutBlock(period time.Duration, maxSize uint) {
+func (b *broadcasterImpl) recvRequests(stream ab.AtomicBroadcast_BroadcastServer) {
+	reply := new(ab.BroadcastReply)
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			b.errChan <- err
+			return
+		}
+
+		b.batchChan <- msg
+		reply.Status = ab.Status_SUCCESS // TODO This shouldn't always be a success
+
+		if err := stream.Send(reply); err != nil {
+			b.errChan <- err
+			return
+		}
+		Logger.Debugf("Sent broadcast reply %v to client\n", reply.Status.String())
+	}
+}
+
+func (b *broadcasterImpl) cutBlock(period time.Duration, maxSize uint) error {
 	every := time.NewTicker(period)
 
 	for {
 		select {
+		case err := <-b.errChan:
+			return err
 		case msg := <-b.batchChan:
 			b.messages = append(b.messages, msg)
 			if len(b.messages) >= int(maxSize) {
-				b.sendBlock()
+				if err := b.sendBlock(); err != nil {
+					return err
+				}
 			}
 		case <-every.C:
 			if len(b.messages) > 0 {
-				b.sendBlock()
+				if err := b.sendBlock(); err != nil {
+					return err
+				}
 			}
 		}
-	}
-}
-
-func (b *broadcasterImpl) recvRequests(stream ab.AtomicBroadcast_BroadcastServer) error {
-	reply := new(ab.BroadcastReply)
-	for {
-		msg, err := stream.Recv()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		b.batchChan <- msg
-		reply.Status = ab.Status_SUCCESS // TODO This shouldn't always be a success
-		err = stream.Send(reply)
-		if err != nil {
-			return err
-		}
-		Logger.Debugf("Sent broadcast reply %v to client\n", reply.Status.String())
 	}
 }
