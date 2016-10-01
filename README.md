@@ -50,10 +50,9 @@ This will bring up a server that can be reached at the default port on your Dock
 
 A rough list, in descending priority:
 
-- [ ] Add BDD tests
-- [ ] Add option to persist/load configuration
 - [ ] Validate user input
-- [ ] Add TLS support
 - [ ] Map proto `Status` codes to [Kafka-generated
   errors](https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-ErrorCodes)
 - [ ] Add instrumentation
+- [ ] Add support for multiple orderers
+- [ ] Support TLS
