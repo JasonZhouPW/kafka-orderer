@@ -40,6 +40,12 @@ A basic sequence diagram of this thing in action (assuming a block size of 2):
 - `window`: When in deliver mode, how many blocks can the server send without acknowledgement. Default value: `10`.
 - `ack`: When in deliver mode, send acknowledgment per this many blocks received. Default value: `7`. (Consult the [proto file](https://github.com/kchristidis/kafka-orderer/blob/devel/ab/ab.proto) for more info on the `seek`/`window`/`ack` options.)
 
+## Docker Compose
+
+`CGO_ENABLED=0 GOOS=linux go build -a; docker build -t kchristidis/orderer .; docker-compose up`
+
+This will bring up a server that can be reached at the default port on your Docker host.
+
 ## TODO
 
 A rough list, in descending priority:

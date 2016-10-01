@@ -1,0 +1,22 @@
+kafka:
+    image: kchristidis/kafka
+    container_name: kafka
+    environment:
+        - ADVERTISED_HOST=0.0.0.0
+        - ADVERTISED_PORT=9092
+
+orderer:
+    image: kchristidis/orderer
+    container_name: orderer
+    links:
+        - kafka
+    environment:
+        - ORDERER_GENERAL_ORDERERTYPE=kafka
+        - ORDERER_GENERAL_BATCHTIMEOUT=10s
+        - ORDERER_GENERAL_BATCHSIZE=10
+        - ORDERER_GENERAL_MAXWINDOWSIZE=1000
+        - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+        - ORDERER_GENERAL_LISTENPORT=5151
+        - ORDERER_KAFKA_BROKERS=[kafka:9092]
+    ports:
+        - "5151:5151"
