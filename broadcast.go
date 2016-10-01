@@ -95,6 +95,7 @@ func (b *broadcasterImpl) recvRequests(stream ab.AtomicBroadcast_BroadcastServer
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
+			Logger.Info("Cannot receive request from client")
 			b.errChan <- err
 			return
 		}
@@ -104,6 +105,8 @@ func (b *broadcasterImpl) recvRequests(stream ab.AtomicBroadcast_BroadcastServer
 
 		if err := stream.Send(reply); err != nil {
 			Logger.Info("Cannot send broadcast reply to client")
+			b.errChan <- err
+			return
 		} else {
 			Logger.Debugf("Sent broadcast reply %v to client", reply.Status.String())
 		}
@@ -115,8 +118,6 @@ func (b *broadcasterImpl) cutBlock(period time.Duration, maxSize uint) error {
 
 	for {
 		select {
-		case err := <-b.errChan:
-			return err
 		case msg := <-b.batchChan:
 			b.messages = append(b.messages, msg)
 			if len(b.messages) >= int(maxSize) {
@@ -128,6 +129,12 @@ func (b *broadcasterImpl) cutBlock(period time.Duration, maxSize uint) error {
 			if len(b.messages) > 0 {
 				if err := b.sendBlock(); err != nil {
 					return err
+				}
+			} else {
+				select {
+				case err := <-b.errChan:
+					return err
+				default:
 				}
 			}
 		}
