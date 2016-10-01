@@ -32,7 +32,7 @@ func init() {
 	formatter := logging.MustStringFormatter("[%{time:15:04:05}] %{shortfile:18s}: %{color}[%{level:-5s}]%{color:reset} %{message}")
 	logging.SetFormatter(formatter)
 	Logger = logging.MustGetLogger("orderer/kafka")
-	logging.SetLevel(logging.INFO, "") // Silence Debug outpus when testing.
+	logging.SetLevel(logging.INFO, "") // Silence debug-level outputs when testing
 }
 
 // SetLogLevel sets the package log level
