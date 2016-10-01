@@ -104,8 +104,9 @@ func (b *broadcasterImpl) recvRequests(stream ab.AtomicBroadcast_BroadcastServer
 
 		if err := stream.Send(reply); err != nil {
 			Logger.Info("Cannot send broadcast reply to client")
+		} else {
+			Logger.Debugf("Sent broadcast reply %v to client", reply.Status.String())
 		}
-		Logger.Debugf("Sent broadcast reply %v to client", reply.Status.String())
 	}
 }
 
