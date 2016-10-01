@@ -15,10 +15,10 @@ A basic sequence diagram of this thing in action (assuming a block size of 2):
 ## Give it a test run
 
 1. Install the Docker Engine and download the `kchristidis/kafka` image ([repo](https://github.com/kchristidis/docker-kafka))
-2. Clone this repo, `cd` to it, then install the binaries: `$ cd cmd/server; go install; cd ../bd_counter/; go install`
+2. Clone this repo, `cd` to it, `git checkout devel`, then install the binaries: `$ cd cmd/server; go install; cd ../bd_counter/; go install`
 3. Launch the orderer: `$ docker run -p 2181:2181 -p 9092:9092 --env ADVERTISED_HOST=0.0.0.0 --env ADVERTISED_PORT=9092 --name kafka kchristidis/kafka`
 3. Launch the orderer: `$ server`
-4. Launch a client that broadcasts 1000 messages: `$ client -rpc broadcast -count 1000`
+4. Launch a client that broadcasts 1000 messages: `$ bd_counter -rpc broadcast -count 1000`
 5. Launch a client that requests the delivery of a stream of all blocks available on the brokers starting from block #5: `$ bd_counter -rpc deliver -seek 5`.
 
 `Ctrl+C` will shutdown a process gracefully, closing the Kafka producer and consumers that were created.
