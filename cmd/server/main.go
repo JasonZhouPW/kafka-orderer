@@ -25,7 +25,6 @@ import (
 	"os/signal"
 
 	"github.com/Shopify/sarama"
-	"github.com/hyperledger/fabric/orderer/kafka"
 	orderer "github.com/kchristidis/kafka-orderer"
 	"github.com/kchristidis/kafka-orderer/ab"
 	"github.com/kchristidis/kafka-orderer/config"
@@ -41,12 +40,13 @@ func main() {
 	var verbose bool
 
 	flag.StringVar(&loglevel, "loglevel", "info",
-		"Set the logging level for the orderer library. (Allowed values: info, debug)")
+		"Set the logging level. (Suggested values: info, debug)")
 	flag.BoolVar(&verbose, "verbose", false,
 		"Turn on logging for the Kafka library. (Default: \"false\")")
 	flag.Parse()
 
 	orderer.SetLogLevel(loglevel)
+	config.SetLogLevel(loglevel)
 	if verbose {
 		sarama.Logger = log.New(os.Stdout, "[sarama] ", log.Lshortfile)
 	}
@@ -69,8 +69,7 @@ func main() {
 	signal.Notify(signalChan, os.Interrupt)
 
 	for range signalChan {
-		kafka.Logger.Info("Server shutting down")
-		// rpcSrv.Stop()
+		fmt.Println("Server shutting down")
 		return
 	}
 }

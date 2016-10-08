@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package orderer
+package config
 
 import (
 	"os"
@@ -30,12 +30,16 @@ func init() {
 	logging.SetBackend(backend)
 	formatter := logging.MustStringFormatter("[%{time:15:04:05}] %{shortfile:18s}: %{color}[%{level:-5s}]%{color:reset} %{message}")
 	logging.SetFormatter(formatter)
-	logger = logging.MustGetLogger("orderer/kafka")
-	logging.SetLevel(logging.INFO, "") // Silence debug-level outputs when testing
+	logger = logging.MustGetLogger("orderer/config")
+	logging.SetLevel(logging.DEBUG, "")
 }
 
 // SetLogLevel sets the package logging level
+// This will be called by the orderers to adjust the verbosity of the config package
 func SetLogLevel(level string) {
-	logLevel, _ := logging.LogLevel(strings.ToUpper(level)) // TODO Validate input
+	logLevel, err := logging.LogLevel(strings.ToUpper(level))
+	if err != nil {
+		return
+	}
 	logging.SetLevel(logLevel, logger.Module)
 }

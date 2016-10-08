@@ -92,7 +92,7 @@ func (cd *clientDelivererImpl) sendBlocks(stream ab.AtomicBroadcast_DeliverServe
 	for {
 		select {
 		case <-cd.deadChan:
-			Logger.Debug("sendBlocks goroutine for client-deliverer received shutdown signal")
+			logger.Debug("sendBlocks goroutine for client-deliverer received shutdown signal")
 			return nil
 		case err = <-cd.errChan:
 			return err
@@ -127,7 +127,7 @@ func (cd *clientDelivererImpl) sendBlocks(stream ab.AtomicBroadcast_DeliverServe
 			case data := <-cd.consumer.Recv():
 				err := proto.Unmarshal(data.Value, block)
 				if err != nil {
-					Logger.Info("Failed to unmarshal retrieved block from ordering service:", err)
+					logger.Info("Failed to unmarshal retrieved block from ordering service:", err)
 				}
 				reply = new(ab.DeliverReply)
 				reply.Type = &ab.DeliverReply_Block{Block: block}
@@ -135,7 +135,7 @@ func (cd *clientDelivererImpl) sendBlocks(stream ab.AtomicBroadcast_DeliverServe
 				if err != nil {
 					return fmt.Errorf("Failed to send block to the client: %s", err)
 				}
-				Logger.Debugf("Sent block %v to client (prevHash: %v, messages: %v)\n",
+				logger.Debugf("Sent block %v to client (prevHash: %v, messages: %v)\n",
 					block.Number, block.PrevHash, block.Messages)
 			default:
 				// Return the push token if there are no messages
@@ -149,14 +149,14 @@ func (cd *clientDelivererImpl) sendBlocks(stream ab.AtomicBroadcast_DeliverServe
 func (cd *clientDelivererImpl) processSeek(msg *ab.DeliverUpdate_Seek) error {
 	var err error
 	var seek, window int64
-	Logger.Debug("Received SEEK message")
+	logger.Debug("Received SEEK message")
 
 	window = int64(msg.Seek.WindowSize)
 	if window <= 0 || window > int64(cd.config.General.MaxWindowSize) {
 		return errors.New(windowOutOfRangeError)
 	}
 	cd.window = window
-	Logger.Debug("Requested window size set to", cd.window)
+	logger.Debug("Requested window size set to", cd.window)
 
 	oldestAvailable, err := cd.getOffset(int64(-2))
 	if err != nil {
@@ -180,14 +180,14 @@ func (cd *clientDelivererImpl) processSeek(msg *ab.DeliverUpdate_Seek) error {
 		}
 	}
 
-	Logger.Debug("Requested seek number set to", seek)
+	logger.Debug("Requested seek number set to", seek)
 
 	cd.disablePush()
 	if err := cd.Close(); err != nil {
 		return err
 	}
 	cd.lastACK = seek - 1
-	Logger.Debug("Set last ACK for this client's consumer to", cd.lastACK)
+	logger.Debug("Set last ACK for this client's consumer to", cd.lastACK)
 
 	cd.consumer, err = cd.consumerFunc(cd.config, seek)
 	if err != nil {
@@ -209,7 +209,7 @@ func (cd *clientDelivererImpl) disablePush() int64 {
 	// The caller is the only function that can modify the tokenChan.
 	remTokens := int64(len(cd.tokenChan))
 	cd.tokenChan = nil
-	Logger.Debugf("Pushing blocks to client paused; found %v unused push token(s)", remTokens)
+	logger.Debugf("Pushing blocks to client paused; found %v unused push token(s)", remTokens)
 	return remTokens
 }
 
@@ -218,11 +218,11 @@ func (cd *clientDelivererImpl) enablePush(newTokenCount int64) {
 	for i := int64(0); i < newTokenCount; i++ {
 		cd.tokenChan <- struct{}{}
 	}
-	Logger.Debugf("Pushing blocks to client resumed; %v push token(s) available", newTokenCount)
+	logger.Debugf("Pushing blocks to client resumed; %v push token(s) available", newTokenCount)
 }
 
 func (cd *clientDelivererImpl) processACK(msg *ab.DeliverUpdate_Acknowledgement) error {
-	Logger.Debug("Received ACK for block", msg.Acknowledgement.Number)
+	logger.Debug("Received ACK for block", msg.Acknowledgement.Number)
 	remTokens := cd.disablePush()
 	newACK := int64(msg.Acknowledgement.Number) // TODO Optionally mark this offset in Kafka
 	if (newACK < cd.lastACK) || (newACK > cd.lastACK+cd.window) {

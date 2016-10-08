@@ -51,7 +51,7 @@ loop:
 		case <-panicTick.C:
 			panic(fmt.Errorf("Failed to create Kafka producer: %v", err))
 		case <-repeatTick.C:
-			Logger.Debug("Connecting to Kafka brokers:", conf.Kafka.Brokers)
+			logger.Debug("Connecting to Kafka brokers:", conf.Kafka.Brokers)
 			p, err = sarama.NewSyncProducer(conf.Kafka.Brokers, brokerConfig)
 			if err == nil {
 				break loop
@@ -59,7 +59,7 @@ loop:
 		}
 	}
 
-	Logger.Debug("Connected to Kafka brokers")
+	logger.Debug("Connected to Kafka brokers")
 	return &producerImpl{producer: p, topic: conf.Kafka.Topic}
 }
 
@@ -70,9 +70,9 @@ func (p *producerImpl) Close() error {
 func (p *producerImpl) Send(payload []byte) error {
 	_, offset, err := p.producer.SendMessage(newMsg(payload, p.topic))
 	if err == nil {
-		Logger.Debugf("Forwarded block %v to ordering service", offset)
+		logger.Debugf("Forwarded block %v to ordering service", offset)
 	} else {
-		Logger.Debug("Failed to send to Kafka brokers:", err)
+		logger.Debug("Failed to send to Kafka brokers:", err)
 	}
 	return err
 }

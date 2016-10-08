@@ -24,15 +24,8 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/op/go-logging"
 	"github.com/spf13/viper"
 )
-
-var logger = logging.MustGetLogger("orderer/config")
-
-func init() {
-	logging.SetLevel(logging.DEBUG, "")
-}
 
 // Prefix is the default config prefix for the orderer
 const Prefix string = "ORDERER"
@@ -162,6 +155,9 @@ func (c *TopLevel) completeInitialization() {
 			logger.Infof("Kafka.Retry.Stop unset, setting to %v", defaults.Kafka.Retry.Stop)
 			c.Kafka.Retry.Stop = defaults.Kafka.Retry.Stop
 		default:
+			// A bit hacky, but its type makes it impossible to test for a nil value.
+			// This may be overwritten by the Kafka orderer upon instantiation.
+			c.Kafka.Version = defaults.Kafka.Version
 			return
 		}
 	}

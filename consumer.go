@@ -42,7 +42,7 @@ func newConsumer(conf *config.TopLevel, seek int64) (Consumer, error) {
 		return nil, err
 	}
 	c := &consumerImpl{parent: parent, partition: partition}
-	Logger.Debug("Created new consumer for client beginning from block", seek)
+	logger.Debug("Created new consumer for client beginning from block", seek)
 	return c, nil
 }
 

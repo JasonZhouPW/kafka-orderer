@@ -80,7 +80,7 @@ func (b *broadcasterImpl) sendBlock() error {
 		Number:   b.nextNumber,
 		PrevHash: b.prevHash,
 	}
-	Logger.Debugf("Prepared block %d with %d messages (%+v)", block.Number, len(block.Messages), block)
+	logger.Debugf("Prepared block %d with %d messages (%+v)", block.Number, len(block.Messages), block)
 
 	b.messages = []*ab.BroadcastMessage{}
 	b.nextNumber++
@@ -95,7 +95,7 @@ func (b *broadcasterImpl) recvRequests(stream ab.AtomicBroadcast_BroadcastServer
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			Logger.Debug("Can no longer receive requests from client (exited?)")
+			logger.Debug("Can no longer receive requests from client (exited?)")
 			b.errChan <- err
 			return
 		}
@@ -104,11 +104,11 @@ func (b *broadcasterImpl) recvRequests(stream ab.AtomicBroadcast_BroadcastServer
 		reply.Status = ab.Status_SUCCESS // TODO This shouldn't always be a success
 
 		if err := stream.Send(reply); err != nil {
-			Logger.Info("Cannot send broadcast reply to client")
+			logger.Info("Cannot send broadcast reply to client")
 			b.errChan <- err
 			return
 		}
-		Logger.Debugf("Sent broadcast reply %v to client", reply.Status.String())
+		logger.Debugf("Sent broadcast reply %v to client", reply.Status.String())
 	}
 }
 
