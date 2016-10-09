@@ -72,7 +72,7 @@ func (p *producerImpl) Send(payload []byte) error {
 	if err == nil {
 		logger.Debugf("Forwarded block %v to ordering service", offset)
 	} else {
-		logger.Debug("Failed to send to Kafka brokers:", err)
+		logger.Info("Failed to send to Kafka brokers:", err)
 	}
 	return err
 }

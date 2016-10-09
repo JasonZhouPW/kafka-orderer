@@ -17,6 +17,7 @@ limitations under the License.
 package orderer
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -61,9 +62,10 @@ func (b *broadcasterImpl) Broadcast(stream ab.AtomicBroadcast_BroadcastServer) e
 		// Send the genesis block to create the topic
 		// otherwise consumers will throw an exception.
 		b.sendBlock()
-		go b.recvRequests(stream)
+		// Spawn the goroutine that cuts blocks
+		go b.cutBlock(b.config.General.BatchTimeout, b.config.General.BatchSize)
 	})
-	return b.cutBlock(b.config.General.BatchTimeout, b.config.General.BatchSize)
+	return b.recvRequests(stream)
 }
 
 // Close shuts down the broadcast side of the orderer
@@ -90,30 +92,8 @@ func (b *broadcasterImpl) sendBlock() error {
 	return b.producer.Send(data)
 }
 
-func (b *broadcasterImpl) recvRequests(stream ab.AtomicBroadcast_BroadcastServer) {
-	reply := new(ab.BroadcastReply)
-	for {
-		msg, err := stream.Recv()
-		if err != nil {
-			logger.Debug("Can no longer receive requests from client (exited?)")
-			b.errChan <- err
-			return
-		}
-
-		b.batchChan <- msg
-		reply.Status = ab.Status_SUCCESS // TODO This shouldn't always be a success
-
-		if err := stream.Send(reply); err != nil {
-			logger.Info("Cannot send broadcast reply to client")
-			b.errChan <- err
-			return
-		}
-		logger.Debugf("Sent broadcast reply %v to client", reply.Status.String())
-	}
-}
-
-func (b *broadcasterImpl) cutBlock(period time.Duration, maxSize uint) error {
-	every := time.NewTicker(period)
+func (b *broadcasterImpl) cutBlock(period time.Duration, maxSize uint) {
+	timer := time.NewTimer(period)
 
 	for {
 		select {
@@ -121,23 +101,39 @@ func (b *broadcasterImpl) cutBlock(period time.Duration, maxSize uint) error {
 			b.messages = append(b.messages, msg)
 			if len(b.messages) >= int(maxSize) {
 				if err := b.sendBlock(); err != nil {
-					return err
+					panic(fmt.Errorf("Cannot communicate with Kafka broker: %s", err))
 				}
+				if !timer.Stop() {
+					<-timer.C
+				}
+				timer.Reset(period)
 			}
-		case <-every.C:
+		case <-timer.C:
 			if len(b.messages) > 0 {
 				if err := b.sendBlock(); err != nil {
-					return err
-				}
-			} else {
-				// Exit only after you're done
-				// forwarding all received messages
-				select {
-				case err := <-b.errChan:
-					return err
-				default:
+					panic(fmt.Errorf("Cannot communicate with Kafka broker: %s", err))
 				}
 			}
 		}
+	}
+}
+
+func (b *broadcasterImpl) recvRequests(stream ab.AtomicBroadcast_BroadcastServer) error {
+	reply := new(ab.BroadcastReply)
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			logger.Debug("Can no longer receive requests from client (exited?)")
+			return err
+		}
+
+		b.batchChan <- msg
+		reply.Status = ab.Status_SUCCESS // TODO This shouldn't always be a success
+
+		if err := stream.Send(reply); err != nil {
+			logger.Info("Cannot send broadcast reply to client")
+			return err
+		}
+		logger.Debugf("Sent broadcast reply %v to client", reply.Status.String())
 	}
 }
