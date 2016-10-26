@@ -39,7 +39,7 @@ func mockNewProducer(t *testing.T, conf *config.TopLevel, seek int64, disk chan 
 		config:         conf,
 		producer:       mocks.NewSyncProducer(t, nil),
 		checker:        nil,
-		disk:           disk,
+		disk:           disk, // This simulates the broker's "disk" where the producer's messages eventually end up
 		producedOffset: 0,
 		t:              t,
 	}
@@ -54,13 +54,13 @@ func mockNewProducer(t *testing.T, conf *config.TopLevel, seek int64, disk chan 
 func (mp *mockProducerImpl) Send(payload []byte) error {
 	mp.producer.ExpectSendMessageWithCheckerFunctionAndSucceed(mp.checker)
 	mp.producedOffset++
-	mp.disk <- payload
 	prt, ofs, err := mp.producer.SendMessage(newMsg(payload, mp.config.Kafka.Topic))
 	if err != nil ||
 		prt != mp.config.Kafka.PartitionID ||
 		ofs != mp.producedOffset {
 		mp.t.Fatal("Producer not functioning as expected")
 	}
+	mp.disk <- payload // Reaches the broker's disk
 	return err
 }
 
